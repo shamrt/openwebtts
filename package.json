@@ -28,6 +28,8 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tsconfig/svelte": "5.0.4",
     "clsx": "^2.1.1",
+    "eslint-import-resolver-oxc": "^0.15.0",
+    "eslint-plugin-boundaries": "^7.1.0",
     "extension": "^4.0.30",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
