@@ -31,7 +31,7 @@ export default function initial() {
   const styleElement = document.createElement("style");
   shadowRoot.appendChild(styleElement);
 
-  fetchCSS().then((response) => (styleElement.textContent = response));
+  void fetchCSS().then((response) => (styleElement.textContent = response));
 
   // Create container for Svelte app
   const contentDiv = document.createElement("div");
