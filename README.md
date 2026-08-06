@@ -8,6 +8,25 @@ Built from scratch in TypeScript. Logic is ported from [Read Aloud](https://gith
 
 Greenfield. The ticket backlog lives in the Obsidian vault at `~/notes/Obsidian/Vault/dev/ideas/tts-extension/tickets/` (see the development plan at `../development-plan.md`).
 
+## Project structure
+
+Svelte-equivalent of [Bulletproof React](https://github.com/alan2207/bulletproof-react/blob/master/docs/project-structure.md), under `src/lib/`:
+
+- `features/<feature>/` — feature slices, each with an `index.ts` public barrel (`+page.svelte` / `+component.svelte` for UI); internal files are private to the feature.
+- `components/ui/` — shadcn-svelte primitives (added via the shadcn-svelte CLI).
+- `server/` — background / offscreen logic.
+- `shared/` — cross-feature types and utilities (`src/lib/utils.ts` holds the shadcn `cn` helper).
+
+## Dev commands
+
+| Command                       | What it does                                                     |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `pnpm dev`                    | `extension dev` — load the extension in a fresh browser profile. |
+| `pnpm build`                  | `extension build` — production artifacts.                        |
+| `pnpm check`                  | `vp check` — format + lint + type-aware checks.                  |
+| `pnpm test`                   | `vp test` — Vitest.                                              |
+| `pnpm lint` / `pnpm lint:fix` | standalone Oxlint.                                               |
+
 ## Attribution
 
 OpenWebTTS reuses the following free/open-source software:
