@@ -6,7 +6,7 @@ Built from scratch in TypeScript. Logic is ported from [Read Aloud](https://gith
 
 ## Status
 
-Greenfield. The ticket backlog lives in the Obsidian vault at `~/notes/Obsidian/Vault/dev/ideas/tts-extension/tickets/` (see the development plan at `../development-plan.md`).
+Greenfield, under active development.
 
 ## Project structure
 
@@ -26,6 +26,30 @@ Svelte-equivalent of [Bulletproof React](https://github.com/alan2207/bulletproof
 | `pnpm check`                  | `vp check` — format + lint + type-aware checks.                  |
 | `pnpm test`                   | `vp test` — Vitest.                                              |
 | `pnpm lint` / `pnpm lint:fix` | standalone Oxlint.                                               |
+
+## Cross-browser targets & Android
+
+A single `src/manifest.json` drives every target. Browser-specific fields use Extension.js prefixed keys (`chromium:` for Chrome/Edge, `firefox:` for Firefox/Gecko) that are filtered per build into `dist/chrome` and `dist/firefox`.
+
+| Target  | Build                | Dev load                                    |
+| ------- | -------------------- | ------------------------------------------- |
+| Chrome  | `pnpm build:chrome`  | `pnpm exec extension dev --browser chrome`  |
+| Firefox | `pnpm build:firefox` | `pnpm exec extension dev --browser firefox` |
+
+Manifest notes:
+
+- Chrome (MV3) declares `sidePanel` + `offscreen` permissions and `<all_urls>` host permissions; the offscreen document hosts the WASM Piper audio pipeline (Firefox has no `chrome.offscreen` — its event-page background already has DOM access, so the permission is Chromium-only).
+- Firefox (MV2) declares `<all_urls>` permissions and a `browser_specific_settings.gecko_android.strict_min_version` (`120.0`) so AMO lists the add-on for Firefox for Android as well as desktop. `gecko.id` is `@openwebtts`.
+
+### Firefox for Android dev loop
+
+Firefox for Android is the primary target. Development on a connected Android device/emulator is via manual `web-ext` sideload (Playwright does not drive Android):
+
+1. Build the Firefox artifact: `pnpm build:firefox`.
+2. Install [`web-ext`](https://extensionworkshop.com/documentation/develop/web-ext-command-reference/) (`pnpm add -g web-ext`).
+3. Push and load it on a USB-debug-enabled device/emulator: `web-ext run --target=firefox-android --source=dist/firefox --adb-device <device-id>`.
+
+Release install on Android is via AMO signing: submit `dist/firefox` to [addons.mozilla.org](https://addons.mozilla.org), then install from the device's Firefox Add-ons listing.
 
 ## Attribution
 

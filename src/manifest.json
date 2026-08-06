@@ -5,9 +5,14 @@
   "version": "1.0.0",
   "firefox:browser_specific_settings": {
     "gecko": {
+      "id": "@openwebtts",
+      "strict_min_version": "115.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
+    },
+    "gecko_android": {
+      "strict_min_version": "120.0"
     }
   },
   "name": "OpenWebTTS",
@@ -47,7 +52,9 @@
     "default_panel": "sidebar/index.html",
     "default_title": "Side Panel Content"
   },
-  "chromium:permissions": ["sidePanel"],
+  "chromium:permissions": ["sidePanel", "offscreen"],
+  "chromium:host_permissions": ["<all_urls>"],
+  "firefox:permissions": ["<all_urls>"],
   "background": {
     "chromium:service_worker": "background.ts",
     "firefox:scripts": ["background.ts"]
