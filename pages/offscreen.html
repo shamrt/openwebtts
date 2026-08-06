@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenWebTTS Offscreen</title>
+  </head>
+  <body>
+    <!--
+      Ticket 0005 — the offscreen document hosts the `<audio>` pipeline that
+      WASM Piper (0006) feeds. Extension.js auto-bundles any `*.html` under the
+      root `pages/` folder (it does NOT bundle `src/offscreen/index.html`, which
+      is not referenced by the manifest; the offscreen API has no manifest
+      field, and the manifest is intentionally not modified). The document
+      loads its module from the feature source under `src/offscreen/` so the
+      audio host logic stays in the `src/` tree, mirroring the sidebar layout.
+    -->
+    <script type="module" src="../src/offscreen/offscreen.ts"></script>
+  </body>
+</html>

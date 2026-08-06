@@ -1,3 +1,5 @@
+import { ensureOffscreenDocument } from "$lib/features/tts/offscreen-lifecycle";
+
 console.log("[From the background context] Hello from the background worker/script!");
 
 const isFirefoxLike =
@@ -40,3 +42,10 @@ chrome.runtime.onMessage.addListener((message) => {
     }
   });
 });
+
+// Ticket 0005 — Chromium-only offscreen document lifecycle. `chrome.offscreen`
+// exists only on Chrome/Edge; ensureOffscreenDocument is a no-op where it (or
+// the `chrome` global) is absent, so this is safe on Firefox and in node tests.
+// Keeping the document alive: created once, it persists across service-worker
+// wakes; each wake re-runs this idempotent ensure (hasDocument guard + race swallow).
+void ensureOffscreenDocument();
