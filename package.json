@@ -1,0 +1,31 @@
+{
+  "private": true,
+  "name": "openwebtts",
+  "description": "A free, open-source text-to-speech web reader for Firefox (Android-first) and Chrome.",
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "svelte": "^5.15.0"
+  },
+  "devDependencies": {
+    "@tsconfig/svelte": "5.0.4",
+    "typescript": "7.0.2",
+    "extension": "^4.0.30"
+  },
+  "scripts": {
+    "dev": "extension dev",
+    "start": "extension start",
+    "build": "extension build",
+    "preview": "extension preview",
+    "build:chrome": "extension build --browser chrome",
+    "build:firefox": "extension build --browser firefox",
+    "build:edge": "extension build --browser edge"
+  },
+  "packageManager": "pnpm@11.20.0",
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "less"
+    ]
+  }
+}
