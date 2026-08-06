@@ -1,20 +1,18 @@
-<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+<svg width="128" height="128" viewBox="20 35 90 70" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0" stop-color="#ff6b6b"/>
       <stop offset="100" stop-color="#feca57"/>
     </linearGradient>
   </defs>
-  <g transform="matrix(1.0909091,0,0,1.0909091,-5.8181824,-6.467486)">
-    <path d="m 30,40 h 68 a 8,8 0 0 1 8,8 v 32 a 8,8 0 0 1 -8,8 H 68 L 56,102 V 88 H 30 A 8,8 0 0 1 22,80 V 48 a 8,8 0 0 1 8,-8 z" fill="none" stroke="url(#bg)" stroke-width="4"/>
-    <g transform="translate(-6,-2)">
-      <rect x="38" y="74" width="20" height="6" rx="3" fill="url(#bg)" opacity="0.7"/>
-      <rect x="38" y="63" width="30" height="6" rx="3" fill="url(#bg)" opacity="0.8"/>
-      <rect x="38" y="52" width="40" height="6" rx="3" fill="url(#bg)" opacity="0.9"/>
-    </g>
-    <g transform="translate(-2)">
-      <path d="m 86,54 a 16,16 0 0 1 0,20" stroke="url(#bg)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.8"/>
-      <path d="m 93,51 a 22,22 0 0 1 0,26" stroke="url(#bg)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.9"/>
-    </g>
+  <path d="m 30,44 h 68 a 8,8 0 0 1 8,8 v 32 a 8,8 0 0 1 -8,8 H 68 L 56,106 V 92 H 30 A 8,8 0 0 1 22,84 V 52 a 8,8 0 0 1 8,-8 z" fill="none" stroke="url(#bg)" stroke-width="4"/>
+  <g>
+    <rect x="38" y="78" width="20" height="6" rx="3" fill="url(#bg)" opacity="0.7"/>
+    <rect x="38" y="67" width="30" height="6" rx="3" fill="url(#bg)" opacity="0.8"/>
+    <rect x="38" y="56" width="40" height="6" rx="3" fill="url(#bg)" opacity="0.9"/>
+  </g>
+  <g>
+    <path d="m 86,58 a 16,16 0 0 1 0,20" stroke="url(#bg)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.8"/>
+    <path d="m 93,55 a 22,22 0 0 1 0,26" stroke="url(#bg)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.9"/>
   </g>
 </svg>
