@@ -17,6 +17,8 @@
     "lint:fix": "oxlint --fix",
     "check": "vp check --no-error-on-unmatched-pattern",
     "test": "vp test",
+    "test:coverage": "vp test --coverage",
+    "test:e2e": "playwright test",
     "prepare": "husky"
   },
   "dependencies": {
@@ -25,13 +27,16 @@
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@lucide/svelte": "^1.28.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tsconfig/svelte": "5.0.4",
+    "@vitest/coverage-v8": "4.1.10",
     "clsx": "^2.1.1",
     "eslint-import-resolver-oxc": "^0.15.0",
     "eslint-plugin-boundaries": "^7.1.0",
     "extension": "^4.0.30",
     "husky": "^9.1.7",
+    "jsdom": "^30.0.1",
     "lint-staged": "^17.3.0",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",

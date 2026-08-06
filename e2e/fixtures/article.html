@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenWebTTS E2E fixture — sample article</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 38rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+      }
+      p {
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <h1>The Slow Web</h1>
+      <p>
+        The slow web is a reading-first corner of the internet: long-form essays, hand-written
+        journals, and pages that reward attention instead of competing for it. OpenWebTTS reads
+        these pages aloud so you can keep your eyes on the road, the dishes, or the trail.
+      </p>
+
+      <h2>Why read aloud</h2>
+      <p>
+        Spoken text turns idle time into reading time. A ten-minute walk becomes a chapter; a
+        commute becomes an essay. The extension's overlay stays out of the page's way until you ask
+        for it, then collapses back to a single pill when you are done.
+      </p>
+
+      <h2>How it works</h2>
+      <p>
+        A content script extracts the article into speakable chunks, a hybrid text-to-speech engine
+        speaks them, and an as-you-read highlighter tracks the active sentence or paragraph. A
+        skip-to-section slider jumps between headings so you can navigate by structure, not by
+        scroll position.
+      </p>
+
+      <h3>Engines</h3>
+      <p>
+        The Web Speech API is the primary engine; when it reports no voices, a bundled WASM Piper
+        model takes over so the reader works even where system voices are absent.
+      </p>
+    </article>
+  </body>
+</html>

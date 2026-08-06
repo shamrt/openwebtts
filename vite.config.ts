@@ -9,6 +9,28 @@ export default defineConfig({
       $lib: path.resolve("./src/lib"),
     },
   },
+  test: {
+    // jsdom gives DOM-aware tests (overlay/content-script) a real document;
+    // node-safe unit tests keep working because they install their own fakes
+    // on `globalThis`, which is the jsdom window in this environment.
+    environment: "jsdom",
+    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      // The coverage gate targets the feature/utility surface under src/lib;
+      // test files and public barrels are excluded so the gate measures
+      // product code, not test scaffolding.
+      include: ["src/lib/**/*.ts"],
+      exclude: ["src/lib/**/*.test.ts", "src/lib/**/index.ts", "src/lib/**/.gitkeep"],
+      thresholds: {
+        lines: 80,
+        branches: 80,
+        functions: 80,
+        statements: 80,
+      },
+    },
+  },
   fmt: {
     sortImports: {
       groups: [

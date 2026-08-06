@@ -25,7 +25,29 @@ Svelte-equivalent of [Bulletproof React](https://github.com/alan2207/bulletproof
 | `pnpm build`                  | `extension build` — production artifacts.                        |
 | `pnpm check`                  | `vp check` — format + lint + type-aware checks.                  |
 | `pnpm test`                   | `vp test` — Vitest.                                              |
+| `pnpm test:coverage`          | `vp test --coverage` — Vitest with the coverage gate.            |
+| `pnpm test:e2e`               | Playwright E2E — loads the built extension.                      |
 | `pnpm lint` / `pnpm lint:fix` | standalone Oxlint.                                               |
+
+## Testing
+
+Vitest (bundled in Vite+) is the unit + integration runner; Playwright drives E2E against the built extension. Vitest is configured in the `test` block of `vite.config.ts`; Playwright in `playwright.config.ts`.
+
+### Unit vs. integration
+
+- **Unit tests** live next to the source as `src/lib/**/*.test.ts`. Each tests one module through its public surface; browser globals (`chrome`, `speechSynthesis`, `SpeechSynthesisUtterance`) are faked on `globalThis` so the test stays fast and deterministic in the jsdom environment without a real browser.
+- **Integration tests** live in `tests/` and assert cross-module or build-output contracts — e.g. `tests/manifest.test.ts` guards the cross-browser manifest produced by Extension.js.
+
+### Commands
+
+- `pnpm test` — `vp test`, runs the whole unit + integration suite once.
+- `pnpm test watch` — `vp test watch` for red→green iteration.
+- `pnpm test:coverage` — `vp test --coverage`, runs the suite with the coverage gate.
+- `pnpm test:e2e` — Playwright E2E; loads the built extension and drives the overlay (see `playwright.config.ts` and `e2e/`).
+
+### Coverage gate
+
+Coverage is measured over `src/lib` (product code only; test files and public barrels are excluded) with the v8 provider. The gate, set in `vite.config.ts` `test.coverage.thresholds`, requires **≥80%** of lines, branches, functions, and statements. The gate runs only when coverage is enabled (`pnpm test:coverage`); `pnpm test` alone stays green.
 
 ## Cross-browser targets & Android
 
