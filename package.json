@@ -11,7 +11,9 @@
   "devDependencies": {
     "@tsconfig/svelte": "5.0.4",
     "typescript": "7.0.2",
-    "extension": "^4.0.30"
+    "extension": "^4.0.30",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   },
   "scripts": {
     "dev": "extension dev",
@@ -22,10 +24,5 @@
     "build:firefox": "extension build --browser firefox",
     "build:edge": "extension build --browser edge"
   },
-  "packageManager": "pnpm@11.20.0",
-  "pnpm": {
-    "ignoredBuiltDependencies": [
-      "less"
-    ]
-  }
+  "packageManager": "pnpm@11.20.0"
 }
