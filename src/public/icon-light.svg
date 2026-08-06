@@ -1,0 +1,22 @@
+<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" fill="white"/>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0" stop-color="#e63946"/>
+      <stop offset="100" stop-color="#fca311"/>
+    </linearGradient>
+  </defs>
+  <!-- Speech bubble with gradient stroke on transparent -->
+  <g transform="matrix(1.0909091,0,0,1.0909091,-5.8181824,-6.467486)">
+    <path d="m 30,40 h 68 a 8,8 0 0 1 8,8 v 32 a 8,8 0 0 1 -8,8 H 68 L 56,102 V 88 H 30 A 8,8 0 0 1 22,80 V 48 a 8,8 0 0 1 8,-8 z" fill="none" stroke="url(#bg)" stroke-width="4"/>
+    <g transform="translate(-6,-2)">
+      <rect x="38" y="74" width="20" height="6" rx="3" fill="url(#bg)" opacity="0.6"/>
+      <rect x="38" y="63" width="30" height="6" rx="3" fill="url(#bg)" opacity="0.8"/>
+      <rect x="38" y="52" width="40" height="6" rx="3" fill="url(#bg)" opacity="1"/>
+    </g>
+    <g transform="translate(-2)">
+      <path d="m 86,54 a 16,16 0 0 1 0,20" stroke="url(#bg)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <path d="m 93,51 a 22,22 0 0 1 0,26" stroke="url(#bg)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.9"/>
+    </g>
+  </g>
+</svg>
