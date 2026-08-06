@@ -15,8 +15,9 @@
     "build:edge": "extension build --browser edge",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "check": "vp check",
-    "test": "vp test"
+    "check": "vp check --no-error-on-unmatched-pattern",
+    "test": "vp test",
+    "prepare": "husky"
   },
   "dependencies": {
     "svelte": "^5.15.0"
@@ -28,6 +29,8 @@
     "@tsconfig/svelte": "5.0.4",
     "clsx": "^2.1.1",
     "extension": "^4.0.30",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
     "shadcn-svelte": "^1.5.0",
