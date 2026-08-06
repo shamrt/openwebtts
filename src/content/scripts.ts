@@ -4,6 +4,7 @@
 // - Avoid adding your own HMR code; dev warnings will be shown if detected
 // Docs: https://extension.js.org/docs/content-scripts
 import { mount } from "svelte";
+
 import ContentApp from "./ContentApp.svelte";
 import "./styles.css";
 

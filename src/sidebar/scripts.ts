@@ -1,4 +1,5 @@
 import { mount } from "svelte";
+
 import SidebarApp from "./SidebarApp.svelte";
 import "./styles.css";
 
