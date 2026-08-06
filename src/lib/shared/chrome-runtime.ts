@@ -9,14 +9,17 @@
  * no-op). Each consumer guards its own usage.
  */
 
+/** A `chrome.runtime.onMessage` listener (may return a promise in MV3). */
+export type MessageListener = (message: unknown) => boolean | undefined | void | Promise<unknown>;
+
 /** The `chrome.runtime` message-bus surface the pipeline uses. */
 export interface ChromeRuntimeSurface {
   /** Sends a message to other extension contexts (offscreen document). */
   sendMessage(message: unknown): Promise<unknown>;
   /** Runtime message listener registration. */
   onMessage: {
-    addListener(cb: (message: unknown) => boolean | undefined | void): void;
-    removeListener(cb: (message: unknown) => boolean | undefined | void): void;
+    addListener(cb: MessageListener): void;
+    removeListener(cb: MessageListener): void;
   };
 }
 

@@ -1,3 +1,4 @@
+import { startAudioRouter } from "$lib/features/tts/audio-router";
 import { ensureOffscreenDocument } from "$lib/features/tts/offscreen-lifecycle";
 
 console.log("[From the background context] Hello from the background worker/script!");
@@ -49,3 +50,10 @@ chrome.runtime.onMessage.addListener((message) => {
 // Keeping the document alive: created once, it persists across service-worker
 // wakes; each wake re-runs this idempotent ensure (hasDocument guard + race swallow).
 void ensureOffscreenDocument();
+
+// Ticket 0005 — route audio commands through the background so the offscreen
+// document is (re)created before delivery. Chrome auto-closes an
+// AUDIO_PLAYBACK document after ~30s of silence; the router re-ensures it on
+// every command (idempotent + race-swallow), so a resume after a pause still
+// reaches a live host. Chromium-only: no-op where `chrome.runtime` is absent.
+startAudioRouter();

@@ -1,13 +1,19 @@
-import { isAudioChannelMessage } from "$lib/features/tts/audio-channel";
+import { isOffscreenAudioCommand } from "$lib/features/tts/audio-router";
 import { getChrome } from "$lib/shared/chrome-runtime";
 
 /**
  * Ticket 0005 — offscreen document audio host.
  *
  * Runs inside the Chromium offscreen document. Owns an `<audio>` element and
- * translates the typed {@link AudioChannelMessage} commands (sent by
- * `audio-channel.ts` over `chrome.runtime.sendMessage`) into real
- * `HTMLMediaElement` calls: load sets `src`, play/pause/stop drive the element.
+ * translates the internal {@link OffscreenAudioCommand} messages (forwarded
+ * by the background router in `audio-router.ts`) into real `HTMLMediaElement`
+ * calls: load sets `src`, play/pause/stop drive the element.
+ *
+ * The host accepts ONLY internal commands, so a controller's direct public
+ * broadcast is ignored here and routed solely through the background — which
+ * guarantees this document exists before a command is delivered (Chrome
+ * auto-closes an AUDIO_PLAYBACK document after ~30s of silence; the background
+ * re-ensures it before forwarding).
  *
  * Node-safe: with no `document` (node test env) or no `chrome.runtime.onMessage`
  * (Firefox, where the offscreen path is not used), {@link startOffscreenAudio}
@@ -44,25 +50,24 @@ function getDocument(): DocumentSurface | undefined {
  */
 export function startOffscreenAudio(): () => void {
   const doc = getDocument();
-  const chrome = getChrome();
-  const onMessage = chrome?.runtime?.onMessage;
+  const onMessage = getChrome()?.runtime?.onMessage;
   if (!doc || !onMessage) return () => {};
 
   const audio = doc.createElement("audio");
 
   const listener = (message: unknown): void => {
-    if (!isAudioChannelMessage(message)) return;
+    if (!isOffscreenAudioCommand(message)) return;
     switch (message.type) {
-      case "tts:audio:load":
+      case "tts:audio:internal:load":
         audio.src = message.src;
         break;
-      case "tts:audio:play":
+      case "tts:audio:internal:play":
         void audio.play();
         break;
-      case "tts:audio:pause":
+      case "tts:audio:internal:pause":
         audio.pause();
         break;
-      case "tts:audio:stop":
+      case "tts:audio:internal:stop":
         audio.pause();
         audio.currentTime = 0;
         break;
