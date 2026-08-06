@@ -113,8 +113,15 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
     if (token !== currentToken) return;
 
     // 4. Relay char-offset boundaries (load-bearing for 0016 highlighting).
+    // A throwing consumer callback must not abort playback.
     for (const b of result.boundaries) {
-      for (const cb of boundaryCbs) cb(b);
+      for (const cb of boundaryCbs) {
+        try {
+          cb(b);
+        } catch {
+          // consumer callback bug — isolated, never surfaces or aborts play
+        }
+      }
     }
 
     // 5. Play the synthesized buffer through the offscreen `<audio>` pipeline.
@@ -127,7 +134,10 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
   return {
     speak(text: string, opts: SpeakOpts): void {
       const token = ++currentToken;
-      void pipeline(text, opts, token);
+      // Fire-and-forget: any rejection (model cache, synth message, audio
+      // channel, audioToSrc) is swallowed so a discarded pipeline never
+      // surfaces as an unhandled promise rejection.
+      void pipeline(text, opts, token).catch(() => {});
     },
 
     stop(): void {

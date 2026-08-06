@@ -30,33 +30,50 @@ class FakeReq<T> {
 }
 
 class FakeStore {
-  private data = new Map<string, unknown>();
+  constructor(
+    private records: Map<string, unknown>,
+    private mode: IDBTransactionMode,
+  ) {}
 
   get(key: string): FakeReq<unknown> {
     const r = new FakeReq<unknown>();
-    r.result = this.data.get(key);
+    r.result = this.records.get(key);
     queueMicrotask(() => r.onsuccess?.());
     return r;
   }
 
   put(value: unknown, key: string): FakeReq<unknown> {
-    this.data.set(key, value);
     const r = new FakeReq<unknown>();
+    if (this.mode === "readonly") {
+      r.error = new DOMException("put in readonly transaction", "ReadOnlyError");
+      queueMicrotask(() => r.onerror?.());
+      return r;
+    }
+    this.records.set(key, value);
     queueMicrotask(() => r.onsuccess?.());
     return r;
   }
 }
 
 class FakeDB {
-  private stores = new Map<string, FakeStore>();
-  objectStoreNames = { contains: (n: string) => this.stores.has(n) };
+  private records = new Map<string, Map<string, unknown>>();
+  objectStoreNames = { contains: (n: string) => this.records.has(n) };
   createObjectStore(n: string): FakeStore {
-    const s = new FakeStore();
-    this.stores.set(n, s);
-    return s;
+    const m = new Map<string, unknown>();
+    this.records.set(n, m);
+    return new FakeStore(m, "versionchange");
   }
-  transaction(): { objectStore(n: string): FakeStore } {
-    return { objectStore: (n) => this.stores.get(n)! };
+  transaction(
+    storeNames: string | string[],
+    mode: IDBTransactionMode = "readonly",
+  ): { objectStore(n: string): FakeStore } {
+    if (storeNames === undefined || storeNames === null) {
+      throw new TypeError("Failed to execute 'transaction' on 'IDBDatabase': 1 argument required");
+    }
+    const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+    for (const n of names)
+      if (!this.records.has(n)) throw new Error(`No object store named ${String(n)}`);
+    return { objectStore: (n) => new FakeStore(this.records.get(n)!, mode) };
   }
 }
 
@@ -79,6 +96,21 @@ function loadSrc(messages: Sent[]): string | undefined {
   if (!found || typeof found !== "object" || !("src" in found)) return undefined;
   const src = found.src;
   return typeof src === "string" ? src : undefined;
+}
+
+/**
+ * Captures `unhandledRejection` events during a window so a fire-and-forget
+ * pipeline that leaks a rejection is observable. `process` is the node test
+ * global; vitest surfaces unhandled rejections, but asserting `caught` keeps
+ * the test deterministic and self-describing.
+ */
+function captureUnhandled(): { caught: unknown[]; stop: () => void } {
+  const caught: unknown[] = [];
+  const handler = (reason: unknown): void => {
+    caught.push(reason);
+  };
+  process.on("unhandledRejection", handler);
+  return { caught, stop: () => process.off("unhandledRejection", handler) };
 }
 
 const sent: Sent[] = [];
@@ -112,7 +144,7 @@ const VOICES: PiperVoiceModel[] = [
   },
 ];
 
-function install(): void {
+function install(opts: { loadRejects?: boolean } = {}): void {
   const g = globalThis as Record<string, unknown>;
   saved.chrome = g.chrome;
   saved.indexedDB = g.indexedDB;
@@ -149,6 +181,9 @@ function install(): void {
       sendMessage: async (m: unknown) => {
         sent.push({ type: typeOf(m) ?? "?", message: m });
         if (typeOf(m) === "tts:piper:synthesize") return mockSynthResponse;
+        if (opts.loadRejects && typeOf(m) === "tts:audio:load") {
+          throw new Error("load rejected mid-flight");
+        }
         return undefined;
       },
     },
@@ -285,6 +320,46 @@ describe("WASM Piper adapter (ticket 0006)", () => {
     ).not.toThrow();
     await Promise.resolve();
     expect(sent).toEqual([]);
+  });
+
+  it("a throwing onBoundary callback does not abort playback or surface an unhandled rejection", async () => {
+    install();
+    const engine = createPiperEngine({ voices: VOICES });
+
+    const cap = captureUnhandled();
+    try {
+      engine.onBoundary(() => {
+        throw new Error("buggy boundary callback");
+      });
+      engine.speak("Hello world", OPTS);
+
+      // Playback must still proceed despite the throwing callback; vi.waitFor
+      // polls past the microtask drain, so a leaked rejection would already
+      // be in `cap.caught` by the time this resolves.
+      await vi.waitFor(() => expect(sent.some((s) => s.type === "tts:audio:play")).toBe(true));
+      expect(cap.caught).toHaveLength(0);
+    } finally {
+      cap.stop();
+    }
+  });
+
+  it("an audioChannel.load rejection mid-flight degrades gracefully with no unhandled rejection", async () => {
+    install({ loadRejects: true });
+    const engine = createPiperEngine({ voices: VOICES });
+
+    const cap = captureUnhandled();
+    try {
+      engine.speak("Hello world", OPTS);
+
+      // synth resolves, load rejects, play must NOT be sent. Wait for the load
+      // attempt (the observable signal), by which point a leaked rejection
+      // would already be captured.
+      await vi.waitFor(() => expect(sent.some((s) => s.type === "tts:audio:load")).toBe(true));
+      expect(sent.some((s) => s.type === "tts:audio:play")).toBe(false);
+      expect(cap.caught).toHaveLength(0);
+    } finally {
+      cap.stop();
+    }
   });
 
   it("imports and degrades safely with no chrome/indexedDB globals", async () => {

@@ -32,35 +32,57 @@ class FakeReq<T> {
 }
 
 class FakeStore {
-  private data = new Map<string, unknown>();
+  constructor(
+    private records: Map<string, unknown>,
+    private mode: IDBTransactionMode,
+  ) {}
 
   get(key: string): FakeReq<unknown> {
     const r = new FakeReq<unknown>();
-    r.fire(this.data.get(key));
+    r.fire(this.records.get(key));
     return r;
   }
 
   put(value: unknown, key: string): FakeReq<unknown> {
-    this.data.set(key, value);
     const r = new FakeReq<unknown>();
+    // Real IndexedDB throws ReadOnlyError on a put in a readonly transaction.
+    if (this.mode === "readonly") {
+      r.fire(undefined, new DOMException("put in readonly transaction", "ReadOnlyError"));
+      return r;
+    }
+    this.records.set(key, value);
     r.fire(undefined);
     return r;
   }
 }
 
 class FakeDB {
-  private stores = new Map<string, FakeStore>();
+  private records = new Map<string, Map<string, unknown>>();
 
-  objectStoreNames = { contains: (n: string): boolean => this.stores.has(n) };
+  objectStoreNames = { contains: (n: string): boolean => this.records.has(n) };
 
   createObjectStore(n: string): FakeStore {
-    const s = new FakeStore();
-    this.stores.set(n, s);
-    return s;
+    // The versionchange upgrade transaction is read/write capable.
+    const m = new Map<string, unknown>();
+    this.records.set(n, m);
+    return new FakeStore(m, "versionchange");
   }
 
-  transaction(): { objectStore(n: string): FakeStore } {
-    return { objectStore: (n) => this.stores.get(n)! };
+  // Faithful signature: real `IDBDatabase.transaction(storeNames, mode?)`
+  // requires storeNames and defaults to readonly; a put in a readonly
+  // transaction throws. This enforces both so the SUT can't hide the bug.
+  transaction(
+    storeNames: string | string[],
+    mode: IDBTransactionMode = "readonly",
+  ): { objectStore(n: string): FakeStore } {
+    if (storeNames === undefined || storeNames === null) {
+      throw new TypeError("Failed to execute 'transaction' on 'IDBDatabase': 1 argument required");
+    }
+    const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+    for (const n of names) {
+      if (!this.records.has(n)) throw new Error(`No object store named ${String(n)}`);
+    }
+    return { objectStore: (n) => new FakeStore(this.records.get(n)!, mode) };
   }
 }
 

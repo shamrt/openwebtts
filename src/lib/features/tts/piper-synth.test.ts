@@ -31,33 +31,50 @@ class FakeReq<T> {
 }
 
 class FakeStore {
-  private data = new Map<string, unknown>();
+  constructor(
+    private records: Map<string, unknown>,
+    private mode: IDBTransactionMode,
+  ) {}
 
   get(key: string): FakeReq<unknown> {
     const r = new FakeReq<unknown>();
-    r.result = this.data.get(key);
+    r.result = this.records.get(key);
     queueMicrotask(() => r.onsuccess?.());
     return r;
   }
 
   put(value: unknown, key: string): FakeReq<unknown> {
-    this.data.set(key, value);
     const r = new FakeReq<unknown>();
+    if (this.mode === "readonly") {
+      r.error = new DOMException("put in readonly transaction", "ReadOnlyError");
+      queueMicrotask(() => r.onerror?.());
+      return r;
+    }
+    this.records.set(key, value);
     queueMicrotask(() => r.onsuccess?.());
     return r;
   }
 }
 
 class FakeDB {
-  private stores = new Map<string, FakeStore>();
-  objectStoreNames = { contains: (n: string) => this.stores.has(n) };
+  private records = new Map<string, Map<string, unknown>>();
+  objectStoreNames = { contains: (n: string) => this.records.has(n) };
   createObjectStore(n: string): FakeStore {
-    const s = new FakeStore();
-    this.stores.set(n, s);
-    return s;
+    const m = new Map<string, unknown>();
+    this.records.set(n, m);
+    return new FakeStore(m, "versionchange");
   }
-  transaction(): { objectStore(n: string): FakeStore } {
-    return { objectStore: (n) => this.stores.get(n)! };
+  transaction(
+    storeNames: string | string[],
+    mode: IDBTransactionMode = "readonly",
+  ): { objectStore(n: string): FakeStore } {
+    if (storeNames === undefined || storeNames === null) {
+      throw new TypeError("Failed to execute 'transaction' on 'IDBDatabase': 1 argument required");
+    }
+    const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+    for (const n of names)
+      if (!this.records.has(n)) throw new Error(`No object store named ${String(n)}`);
+    return { objectStore: (n) => new FakeStore(this.records.get(n)!, mode) };
   }
 }
 

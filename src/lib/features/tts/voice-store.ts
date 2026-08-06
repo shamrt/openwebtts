@@ -42,7 +42,10 @@ interface IDBStore {
 interface IDBDatabaseSurface {
   objectStoreNames: { contains(name: string): boolean };
   createObjectStore(name: string): IDBStore;
-  transaction(): { objectStore(name: string): IDBStore };
+  transaction(
+    storeNames: string | string[],
+    mode?: IDBTransactionMode,
+  ): { objectStore(name: string): IDBStore };
 }
 interface IDBFactorySurface {
   open(name: string, version: number): IDBReq;
@@ -76,8 +79,8 @@ function openDB(): Promise<IDBDatabaseSurface> {
   return promise;
 }
 
-function withStore<T>(run: (store: IDBStore) => Promise<T>): Promise<T> {
-  return openDB().then((db) => run(db.transaction().objectStore(STORE_NAME)));
+function withStore<T>(mode: IDBTransactionMode, run: (store: IDBStore) => Promise<T>): Promise<T> {
+  return openDB().then((db) => run(db.transaction(STORE_NAME, mode).objectStore(STORE_NAME)));
 }
 
 function reqAsPromise<T>(req: IDBReq): Promise<T> {
@@ -92,7 +95,7 @@ function reqAsPromise<T>(req: IDBReq): Promise<T> {
  * Rejects when IndexedDB is unavailable.
  */
 export async function getVoiceModel(voiceUri: string): Promise<Blob | undefined> {
-  const rec = await withStore((store) =>
+  const rec = await withStore("readonly", (store) =>
     reqAsPromise<VoiceModelRecord | undefined>(store.get(voiceUri)),
   );
   return rec?.blob;
@@ -101,7 +104,7 @@ export async function getVoiceModel(voiceUri: string): Promise<Blob | undefined>
 /** Stores (or replaces) a voice model Blob keyed by `voiceUri`. */
 export async function putVoiceModel(voiceUri: string, blob: Blob, url: string): Promise<void> {
   const record: VoiceModelRecord = { blob, size: blob.size, url, storedAt: Date.now() };
-  await withStore((store) => reqAsPromise(store.put(record, voiceUri)));
+  await withStore("readwrite", (store) => reqAsPromise(store.put(record, voiceUri)));
 }
 
 /**
