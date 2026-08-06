@@ -1,20 +1,10 @@
 {
-  "private": true,
   "name": "openwebtts",
-  "description": "A free, open-source text-to-speech web reader for Firefox (Android-first) and Chrome.",
   "version": "1.0.0",
+  "private": true,
+  "description": "A free, open-source text-to-speech web reader for Firefox (Android-first) and Chrome.",
   "license": "MIT",
   "type": "module",
-  "dependencies": {
-    "svelte": "^5.15.0"
-  },
-  "devDependencies": {
-    "@tsconfig/svelte": "5.0.4",
-    "typescript": "7.0.2",
-    "extension": "^4.0.30",
-    "vite": "catalog:",
-    "vite-plus": "catalog:"
-  },
   "scripts": {
     "dev": "extension dev",
     "start": "extension start",
@@ -22,7 +12,26 @@
     "preview": "extension preview",
     "build:chrome": "extension build --browser chrome",
     "build:firefox": "extension build --browser firefox",
-    "build:edge": "extension build --browser edge"
+    "build:edge": "extension build --browser edge",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "check": "vp check",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "svelte": "^5.15.0"
+  },
+  "devDependencies": {
+    "@tsconfig/svelte": "5.0.4",
+    "extension": "^4.0.30",
+    "oxfmt": "0.61.0",
+    "oxlint": "1.76.0",
+    "typescript": "7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "volta": {
+    "node": "22.23.2"
   },
   "packageManager": "pnpm@11.20.0"
 }
