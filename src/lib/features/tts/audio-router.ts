@@ -86,7 +86,16 @@ export async function routeAudioMessage(message: unknown): Promise<void> {
 export function startAudioRouter(): () => void {
   const onMessage = getChrome()?.runtime?.onMessage;
   if (!onMessage) return () => {};
-  const listener: MessageListener = (message) => routeAudioMessage(message);
+  const listener: MessageListener = (message) => {
+    // Do NOT return a promise for messages this router ignores: an async
+    // onMessage listener whose promise resolves to undefined still sends
+    // `null` as the response and, with multiple listeners, the first
+    // responder wins — which would clobber a sibling host's real response
+    // (e.g. the Piper synth host's PiperSynthResponse). Return undefined
+    // synchronously for non-audio messages, matching the sibling hosts.
+    if (!isAudioChannelMessage(message)) return undefined;
+    return routeAudioMessage(message);
+  };
   onMessage.addListener(listener);
   return () => onMessage.removeListener(listener);
 }
