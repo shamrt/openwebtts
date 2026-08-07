@@ -6,5 +6,12 @@
  */
 
 export type { BoundaryEvent, Engine, SpeakOpts, Voice } from "./engine.js";
+export {
+  createEngineController,
+  type EngineController,
+  type EngineControllerSettings,
+  type EngineSelection,
+  type ResolvedEngine,
+} from "./engine-controller.js";
 export { createPiperEngine } from "./piper-engine.js";
 export { createWebSpeechEngine } from "./web-speech-engine.js";

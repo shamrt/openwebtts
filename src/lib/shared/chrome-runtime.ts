@@ -30,10 +30,21 @@ export interface ChromeOffscreenSurface {
   hasDocument?(): Promise<boolean>;
 }
 
+/**
+ * The `chrome.storage.local` surface the engine controller (and the 0015
+ * settings panel) use to persist the engine selection + chosen voice. Promise
+ * form, as used in MV3 service-worker contexts.
+ */
+export interface ChromeStorageSurface {
+  get(keys: string | string[] | null): Promise<Record<string, unknown>>;
+  set(items: Record<string, unknown>): Promise<void>;
+}
+
 /** The slice of `chrome` the TTS pipeline touches. */
 export interface ChromeSurface {
   runtime?: ChromeRuntimeSurface;
   offscreen?: ChromeOffscreenSurface;
+  storage?: ChromeStorageSurface;
 }
 
 /**
