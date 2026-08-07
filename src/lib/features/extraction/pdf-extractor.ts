@@ -6,21 +6,57 @@
  * chunk carries a synthetic `pdf:page=N` anchor (PDFs have no DOM to anchor
  * against) and no heading level.
  *
+ * pdf.js is large, so it is lazy-loaded: `extractPdf` dynamic-imports it on the
+ * first call and caches the module, keeping it out of the entry chunk. In a
+ * bundled extension that dynamic import is its own chunk loaded from the
+ * extension package (`'self'`) — never a CDN, since MV3 forbids remote code.
+ * The worker source is supplied via {@link configurePdfWorker} (a `file://`
+ * URL in tests; `chrome.runtime.getURL(...)` in the extension).
+ *
  * Output feeds [[0011-track-reading-position-and-progress]] and
  * [[0016-as-you-read-highlighting-configurable-granularity]].
  */
 
-import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import type { ArticleChunk, ExtractedArticle } from "./html-extractor.js";
 
+/** The slice of the pdf.js module this extractor uses (structurally typed). */
+interface PdfjsModule {
+  getDocument(params: {
+    data: Uint8Array | ArrayBuffer;
+    useWorkerFetch?: boolean;
+    isEvalSupported?: boolean;
+  }): { promise: Promise<PDFDocumentProxy> };
+  GlobalWorkerOptions: { workerSrc: string };
+}
+
+/** Cached dynamic-import promise so repeated calls share one pdf.js load. */
+let pdfjsPromise: Promise<PdfjsModule> | null = null;
+
+function loadPdfjs(): Promise<PdfjsModule> {
+  if (!pdfjsPromise) {
+    // Dynamic import is required (not a static import): lazy-loading splits
+    // pdf.js into its own chunk so a ~1MB dep used only for PDF pages stays
+    // out of the entry bundle. The specifier is fixed; the indirection is for
+    // code-splitting, not runtime selection.
+    pdfjsPromise = import("pdfjs-dist/legacy/build/pdf.mjs") as Promise<PdfjsModule>;
+  }
+  return pdfjsPromise;
+}
+
+/** Worker source configured by the caller; applied once pdf.js loads. */
+let configuredWorkerSrc: string | null = null;
+
 /**
- * Set the pdf.js worker source. Must be called once before `extractPdf`.
- * The worker is required by `getDocument`; in non-browser runtimes point this
- * at the legacy worker module via a `file://` URL.
+ * Set the pdf.js worker source. Must be called before the first `extractPdf`.
+ * Stored, not applied immediately, because pdf.js is lazy-loaded — it is
+ * applied inside `extractPdf` once the module is available. In non-browser
+ * runtimes point this at the legacy worker module via a `file://` URL; in the
+ * extension point it at the bundled worker via `chrome.runtime.getURL(...)`.
  */
 export function configurePdfWorker(workerSrc: string): void {
-  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  configuredWorkerSrc = workerSrc;
 }
 
 /**
@@ -71,9 +107,12 @@ function segmentPage(text: string, pageNum: number, startIndex: number): Article
 /**
  * Extract ordered text from a PDF document and segment it into speakable
  * chunks. Pages are processed 1..numPages in order; chunk indices are
- * sequential across all pages.
+ * sequential across all pages. pdf.js is loaded on the first call.
  */
 export async function extractPdf(data: Uint8Array | ArrayBuffer): Promise<ExtractedArticle> {
+  const pdfjs = await loadPdfjs();
+  if (configuredWorkerSrc) pdfjs.GlobalWorkerOptions.workerSrc = configuredWorkerSrc;
+
   const doc = await pdfjs.getDocument({
     data,
     useWorkerFetch: false,
