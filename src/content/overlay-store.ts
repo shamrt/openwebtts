@@ -140,7 +140,19 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     engine.speak(currentChunk.text, opts);
   }
 
+  // The settings store fires `onChange` once on the initial load (with the
+  // persisted/default settings) and again on every set(). The initial-load
+  // fire must not clobber a mode already pinned by the UI or test seam.
+  let initialSettingsApplied = false;
   const settingsDisposer = settingsStore.onChange((s) => {
+    if (!initialSettingsApplied) {
+      initialSettingsApplied = true;
+      if (modePinned) {
+        settings = { ...s, highlightMode: settings.highlightMode };
+        highlighter.setMode(settings.highlightMode);
+        return;
+      }
+    }
     settings = s;
     highlighter.setMode(s.highlightMode);
   });
@@ -154,14 +166,8 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     syncEngine();
   });
 
-  // Initialize.
-  // Apply persisted settings once the store loads — but never clobber a mode
-  // that was already set explicitly (UI or test seam) after construction.
-  void settingsStore.loaded.then(() => {
-    if (modePinned) return;
-    settings = settingsStore.get();
-    highlighter.setMode(settings.highlightMode);
-  });
+  // Initialize. Persisted settings are applied by the settingsDisposer's
+  // initial-load fire once the store loads.
   syncEngine();
   updateCurrentChunk();
 
