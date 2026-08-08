@@ -84,9 +84,6 @@ importers:
       runed:
         specifier: 0.35.1
         version: 0.35.1(svelte@5.56.8)
-      sentencex:
-        specifier: ^1.0.30
-        version: 1.0.30
       shadcn-svelte:
         specifier: ^1.5.0
         version: 1.5.0(svelte@5.56.8)
@@ -3355,35 +3352,6 @@ packages:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
     engines: {node: '>=10'}
     hasBin: true
-
-  sentencex-darwin-arm64@1.0.30:
-    resolution: {integrity: sha512-GsIkjDfK+CyOpZ74OIMW+7G+ZuZjL/Ka7U8vlwPm12jzFyoC3VjhpohXW/ixCySsTcozmFjPjbJMcx7WgMrcLQ==}
-    cpu: [arm64]
-    os: [darwin]
-
-  sentencex-darwin-x64@1.0.30:
-    resolution: {integrity: sha512-JLn8ZtzKamnG7Uqaj01oMV3GHqLuOwl/AOl/RwePRja3oJlJPyX74RgxVN5V83Sar3rk/7vb39Q9mUv2kCP3YA==}
-    cpu: [x64]
-    os: [darwin]
-
-  sentencex-linux-arm64@1.0.30:
-    resolution: {integrity: sha512-FgqHZtu0al8KSZ2HUfYP9fclExhBgyIsCkJ4SwSIgW1At9XZ88sFBWYpBvQo2CMu2nN8yl+illGiHVBJIKUDxA==}
-    cpu: [arm64]
-    os: [linux]
-
-  sentencex-linux-x64@1.0.30:
-    resolution: {integrity: sha512-1/+2OI/fCLJPRssTL5ExMoQV2UvFHhWIjZ1PJtI6ZPlPdaum6cVIQHCUlm9QDbYF+2WGaTwdcJwIEvsuaX2Pgg==}
-    cpu: [x64]
-    os: [linux]
-
-  sentencex-win32-x64@1.0.30:
-    resolution: {integrity: sha512-orrGv2f6aXoH14xzWF+B3ZZODGJkIWdkQc9BWu4Ot+D2O13ah+kM4gXWqH6dsZtkWV6+4rGsRYGc4yo7a4MgyQ==}
-    cpu: [x64]
-    os: [win32]
-
-  sentencex@1.0.30:
-    resolution: {integrity: sha512-3bvOh5PVjnCFrieFINxoDlSxDvkQA0sYfeP7F+4LNnqNr30lbs1MHluWZCAVzz9l1x8epZ6oSognwFD8uNQ5iA==}
-    engines: {node: '>=20'}
 
   shadcn-svelte@1.5.0:
     resolution: {integrity: sha512-fcxTeUwEIvELkL/h0Vg2i/9Sf6exAmLG5u3GXc0aN8CA+3fNffKQnfrTdMgkjUEmx9XP619I+wcJOvlr5aDWYQ==}
@@ -6750,29 +6718,6 @@ snapshots:
       ajv-keywords: 5.1.0(ajv@8.20.0)
 
   semver@7.8.5: {}
-
-  sentencex-darwin-arm64@1.0.30:
-    optional: true
-
-  sentencex-darwin-x64@1.0.30:
-    optional: true
-
-  sentencex-linux-arm64@1.0.30:
-    optional: true
-
-  sentencex-linux-x64@1.0.30:
-    optional: true
-
-  sentencex-win32-x64@1.0.30:
-    optional: true
-
-  sentencex@1.0.30:
-    optionalDependencies:
-      sentencex-darwin-arm64: 1.0.30
-      sentencex-darwin-x64: 1.0.30
-      sentencex-linux-arm64: 1.0.30
-      sentencex-linux-x64: 1.0.30
-      sentencex-win32-x64: 1.0.30
 
   shadcn-svelte@1.5.0(svelte@5.56.8):
     dependencies:
