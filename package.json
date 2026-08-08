@@ -22,10 +22,11 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "pdfjs-dist": "^6.2.108",
     "svelte": "^5.15.0"
   },
   "devDependencies": {
-    "@mozilla/readability": "^0.6.0",
     "@playwright/test": "^1.62.1",
     "@tsconfig/svelte": "5.0.4",
     "@vitest/coverage-v8": "4.1.10",
@@ -37,7 +38,6 @@
     "lint-staged": "^17.3.0",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
-    "pdfjs-dist": "^6.2.108",
     "typescript": "7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
