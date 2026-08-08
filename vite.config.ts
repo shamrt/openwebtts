@@ -1,9 +1,7 @@
-import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  plugins: [tailwindcss()],
   resolve: {
     alias: {
       $lib: path.resolve("./src/lib"),
@@ -22,12 +20,7 @@ export default defineConfig({
       // test files and public barrels are excluded so the gate measures
       // product code, not test scaffolding.
       include: ["src/lib/**/*.ts"],
-      exclude: [
-        "src/lib/**/*.test.ts",
-        "src/lib/**/index.ts",
-        "src/lib/**/.gitkeep",
-        "src/lib/vendor/**",
-      ],
+      exclude: ["src/lib/**/*.test.ts", "src/lib/**/index.ts", "src/lib/**/.gitkeep"],
       thresholds: {
         lines: 80,
         branches: 80,
@@ -47,10 +40,6 @@ export default defineConfig({
         ["value-parent", "value-sibling", "value-index"],
         "unknown",
       ],
-    },
-    sortTailwindcss: {
-      stylesheet: "src/app.css",
-      functions: ["cn"],
     },
     sortPackageJson: true,
   },

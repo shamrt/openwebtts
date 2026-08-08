@@ -12,9 +12,5 @@ export default defineConfig({
       "unknown",
     ],
   },
-  sortTailwindcss: {
-    stylesheet: "src/app.css",
-    functions: ["cn"],
-  },
   sortPackageJson: true,
 });

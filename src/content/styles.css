@@ -1,6 +1,6 @@
-/* Overlay shell styles — injected into the shadow root after the compiled
- * Tailwind/shadcn stylesheet (appCss). Plain CSS; Tailwind utility classes
- * from appCss are also available to the shadcn primitives inside the overlay.
+/* Overlay shell styles — injected into the shadow root (the only stylesheet
+ * the overlay receives). Plain CSS; Tailwind/shadcn are not used (the
+ * content-script build can't compile them).
  *
  * Design goals:
  *  - Bottom-anchored, high z-index, above page content.

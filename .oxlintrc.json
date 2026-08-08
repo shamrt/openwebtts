@@ -7,27 +7,6 @@
   },
   "rules": {
     "boundaries/no-unknown-dependencies": "error",
-    "no-restricted-imports": [
-      "error",
-      {
-        "paths": [
-          {
-            "name": "bits-ui",
-            "message": "Extension.js svelte-loader skips node_modules .svelte — import from $lib/vendor/bits-ui/... instead (run `pnpm run vendor`; see scripts/vendor-deps.mjs)."
-          },
-          {
-            "name": "@lucide/svelte",
-            "message": "Extension.js svelte-loader skips node_modules .svelte — import from $lib/vendor/lucide/... instead (run `pnpm run vendor`; see scripts/vendor-deps.mjs)."
-          }
-        ],
-        "patterns": [
-          {
-            "group": ["@lucide/svelte/*"],
-            "message": "Extension.js svelte-loader skips node_modules .svelte — import from $lib/vendor/lucide/... instead (run `pnpm run vendor`; see scripts/vendor-deps.mjs)."
-          }
-        ]
-      }
-    ],
     "boundaries/dependencies": [
       "error",
       {
