@@ -7,6 +7,27 @@
   },
   "rules": {
     "boundaries/no-unknown-dependencies": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "bits-ui",
+            "message": "Extension.js svelte-loader skips node_modules .svelte — import from $lib/vendor/bits-ui/... instead (run `pnpm run vendor`; see scripts/vendor-deps.mjs)."
+          },
+          {
+            "name": "@lucide/svelte",
+            "message": "Extension.js svelte-loader skips node_modules .svelte — import from $lib/vendor/lucide/... instead (run `pnpm run vendor`; see scripts/vendor-deps.mjs)."
+          }
+        ],
+        "patterns": [
+          {
+            "group": ["@lucide/svelte/*"],
+            "message": "Extension.js svelte-loader skips node_modules .svelte — import from $lib/vendor/lucide/... instead (run `pnpm run vendor`; see scripts/vendor-deps.mjs)."
+          }
+        ]
+      }
+    ],
     "boundaries/dependencies": [
       "error",
       {
@@ -47,7 +68,32 @@
                   "type": "feature",
                   "fileInternalPath": "index.ts",
                   "captured": {
-                    "featureName": "!{{ from.element.captured.featureName }}"
+                    "featureName": [
+                      "!{{ from.element.captured.featureName }}",
+                      "extraction",
+                      "settings"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "from": {
+              "element": {
+                "type": "feature",
+                "captured": {
+                  "featureName": "reading"
+                }
+              }
+            },
+            "allow": {
+              "to": {
+                "element": {
+                  "type": "feature",
+                  "fileInternalPath": "index.ts",
+                  "captured": {
+                    "featureName": ["extraction", "settings"]
                   }
                 }
               }

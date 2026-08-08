@@ -22,7 +22,12 @@ export default defineConfig({
       // test files and public barrels are excluded so the gate measures
       // product code, not test scaffolding.
       include: ["src/lib/**/*.ts"],
-      exclude: ["src/lib/**/*.test.ts", "src/lib/**/index.ts", "src/lib/**/.gitkeep"],
+      exclude: [
+        "src/lib/**/*.test.ts",
+        "src/lib/**/index.ts",
+        "src/lib/**/.gitkeep",
+        "src/lib/vendor/**",
+      ],
       thresholds: {
         lines: 80,
         branches: 80,
@@ -97,7 +102,32 @@ export default defineConfig({
                     type: "feature",
                     fileInternalPath: "index.ts",
                     captured: {
-                      featureName: "!{{ from.element.captured.featureName }}",
+                      featureName: [
+                        "!{{ from.element.captured.featureName }}",
+                        "extraction",
+                        "settings",
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              from: {
+                element: {
+                  type: "feature",
+                  captured: {
+                    featureName: "reading",
+                  },
+                },
+              },
+              allow: {
+                to: {
+                  element: {
+                    type: "feature",
+                    fileInternalPath: "index.ts",
+                    captured: {
+                      featureName: ["extraction", "settings"],
                     },
                   },
                 },

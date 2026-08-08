@@ -1,7 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
-@import "@fontsource-variable/inter";
+
+/* Inter omitted from the shared Tailwind entry: the content script imports
+ * this stylesheet `?inline` into a Shadow DOM, and the @fontsource url() trips
+ * Extension.js's content-script bundler (unhandled `node:` scheme). The overlay
+ * falls back to the sans-serif system stack (`--font-sans` below). The sidebar
+ * loads its own fonts if needed. */
 
 @custom-variant dark (&:is(.dark *));
 
