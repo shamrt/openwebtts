@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenWebTTS E2E fixture — multi-sentence paragraph</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 38rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      p {
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <!--
+        The first paragraph holds two distinct sentences so the sentence-mode
+        highlighter can advance from sentenceIndex 0 to sentenceIndex 1 within
+        a single chunk. charOffset 0 lands in sentence 0; charOffset 35 lands
+        in sentence 1. The extra paragraphs give Readability enough body to
+        reliably classify this as a readable article (a two-sentence article
+        alone is sometimes treated as low-quality and dropped).
+      -->
+      <p id="first">
+        The first sentence is short. The second sentence is longer and clearly different.
+      </p>
+      <p>
+        Reading aloud turns idle moments into reading time. A short walk becomes a chapter; a
+        commute becomes an essay. The overlay stays out of the page's way until you ask for it.
+      </p>
+      <p>
+        A content script extracts the article into speakable chunks, a hybrid text-to-speech engine
+        speaks them, and an as-you-read highlighter tracks the active sentence or paragraph.
+      </p>
+      <p>
+        The Web Speech API is the primary engine; when it reports no voices, a bundled WASM Piper
+        model takes over so the reader works even where system voices are absent.
+      </p>
+    </article>
+  </body>
+</html>

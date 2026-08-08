@@ -133,5 +133,25 @@ export function extractArticle(): ExtractedArticle | null {
   const container = document.createElement("div");
   container.innerHTML = article.content;
 
-  return { title: article.title, chunks: segmentElement(container, document) };
+  // Readability parses a detached clone, so `segmentElement` walks a detached
+  // container and `buildAnchor` would root selectors at that container (not
+  // `document.body`) — they wouldn't resolve in the live page. Map each chunk
+  // back to a live element by text and rebuild the anchor from it so the
+  // highlighter ([[0016]]) can find it.
+  const chunks = segmentElement(container, document).map((chunk) => ({
+    ...chunk,
+    anchor: resolveLiveAnchor(chunk.text) ?? chunk.anchor,
+  }));
+  return { title: article.title, chunks };
+}
+
+/** Find the live page element whose text matches `text` and return its anchor. */
+function resolveLiveAnchor(text: string): string | null {
+  const candidates = document.querySelectorAll("p, h1, h2, h3, h4, h5, h6");
+  for (const candidate of candidates) {
+    if ((candidate.textContent ?? "").trim() === text.trim()) {
+      return buildAnchor(candidate, document);
+    }
+  }
+  return null;
 }

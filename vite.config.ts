@@ -1,9 +1,7 @@
-import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  plugins: [tailwindcss()],
   resolve: {
     alias: {
       $lib: path.resolve("./src/lib"),
@@ -42,10 +40,6 @@ export default defineConfig({
         ["value-parent", "value-sibling", "value-index"],
         "unknown",
       ],
-    },
-    sortTailwindcss: {
-      stylesheet: "src/app.css",
-      functions: ["cn"],
     },
     sortPackageJson: true,
   },
@@ -97,7 +91,32 @@ export default defineConfig({
                     type: "feature",
                     fileInternalPath: "index.ts",
                     captured: {
-                      featureName: "!{{ from.element.captured.featureName }}",
+                      featureName: [
+                        "!{{ from.element.captured.featureName }}",
+                        "extraction",
+                        "settings",
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              from: {
+                element: {
+                  type: "feature",
+                  captured: {
+                    featureName: "reading",
+                  },
+                },
+              },
+              allow: {
+                to: {
+                  element: {
+                    type: "feature",
+                    fileInternalPath: "index.ts",
+                    captured: {
+                      featureName: ["extraction", "settings"],
                     },
                   },
                 },
