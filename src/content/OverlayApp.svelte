@@ -3,6 +3,8 @@
   import type { HighlightMode } from "$lib/features/settings/settings.js";
   import type { Writable } from "svelte/store";
 
+  import type { HeadingMarker } from "./overlay-store.js";
+
   let {
     expanded,
     playing,
@@ -12,9 +14,12 @@
     volume = [1],
     positionPercent,
     chunkText,
+    headings = [],
+    currentHeadingIndex,
     onPlayPause,
     onToggleExpanded,
     onStop,
+    onSeek,
     onEngineChange,
     onHighlightModeChange,
     onRateChange,
@@ -29,9 +34,12 @@
     volume: number[];
     positionPercent: Writable<number>;
     chunkText: Writable<string>;
+    headings: HeadingMarker[];
+    currentHeadingIndex: Writable<number | null>;
     onPlayPause: () => void;
     onToggleExpanded: () => void;
     onStop: () => void;
+    onSeek: (chunkIndex: number) => void;
     onEngineChange: (kind: EngineKind) => void;
     onHighlightModeChange: (mode: HighlightMode) => void;
     onRateChange: (value: number) => void;
@@ -106,6 +114,41 @@
         </div>
         <p class="overlay_progress">{$positionPercent.toFixed(1)}% — {$chunkText.slice(0, 120)}</p>
       </section>
+
+      {#if headings.length > 0}
+        <section class="overlay_section">
+          <h3 class="overlay_section_title">Navigate</h3>
+          <div class="overlay_nav">
+            <input
+              type="range"
+              class="overlay_range overlay_range--nav"
+              min="0"
+              max={headings.length - 1}
+              step="1"
+              value={$currentHeadingIndex ?? 0}
+              oninput={(e) =>
+                onSeek(headings[Number((e.currentTarget as HTMLInputElement).value)]!.chunkIndex)}
+              aria-label="Skip to section"
+              list="openwebtts-heading-markers"
+            />
+            <datalist id="openwebtts-heading-markers">
+              {#each headings as heading, i}
+                <option value={i} label={heading.text}></option>
+              {/each}
+            </datalist>
+            <div class="overlay_nav_readout">
+              <span class="overlay_percent">{$positionPercent.toFixed(1)}%</span>
+              <span class="overlay_nav_heading">
+                {#if $currentHeadingIndex !== null && headings[$currentHeadingIndex]}
+                  {headings[$currentHeadingIndex].text}
+                {:else}
+                  —
+                {/if}
+              </span>
+            </div>
+          </div>
+        </section>
+      {/if}
 
       <section class="overlay_section">
         <h3 class="overlay_section_title">Settings</h3>

@@ -53,6 +53,7 @@ export default function initial() {
     playing: writable(overlayStore.state.status === "playing"),
     positionPercent: writable(overlayStore.positionPercent),
     chunkText: writable(overlayStore.currentChunk?.text ?? ""),
+    currentHeadingIndex: writable(overlayStore.currentHeadingIndex),
   };
   const reactiveDisposers = [
     overlayStore.onStateChange((s) => ui.playing.set(s.status === "playing")),
@@ -60,6 +61,7 @@ export default function initial() {
     overlayStore.onChunkChange(() => {
       ui.chunkText.set(overlayStore.currentChunk?.text ?? "");
       ui.positionPercent.set(overlayStore.positionPercent);
+      ui.currentHeadingIndex.set(overlayStore.currentHeadingIndex);
     }),
   ];
   // DEV-only test seam: E2E tests dispatch CustomEvents on `document` to drive
@@ -119,8 +121,13 @@ export default function initial() {
       },
       positionPercent: ui.positionPercent,
       chunkText: ui.chunkText,
+      headings: overlayStore.headings,
+      currentHeadingIndex: ui.currentHeadingIndex,
       onToggleExpanded() {
         overlayStore.toggleExpanded();
+      },
+      onSeek(chunkIndex) {
+        overlayStore.seek(chunkIndex);
       },
       onPlayPause() {
         if (overlayStore.state.status === "playing") {

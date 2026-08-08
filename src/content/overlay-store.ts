@@ -25,17 +25,31 @@ import { createEngineController } from "$lib/features/tts/controller.js";
 
 export type OverlayState = { status: "idle" } | { status: "playing" } | { status: "paused" };
 
+/** A heading marker for the skip-to-section slider (ticket 0014). */
+export interface HeadingMarker {
+  /** 0-based chunk index of the heading chunk. */
+  readonly chunkIndex: number;
+  /** Heading text to display. */
+  readonly text: string;
+}
+
 export interface OverlayStore {
   readonly state: OverlayState;
   readonly expanded: boolean;
   readonly currentChunk: ArticleChunk | null;
   readonly positionPercent: number;
   readonly engineKind: "web-speech" | "piper";
+  /** Heading chunks in reading order, for the skip-to-section slider. */
+  readonly headings: HeadingMarker[];
+  /** Index into {@link headings} for the current section, or null when none. */
+  readonly currentHeadingIndex: number | null;
   play(): void;
   pause(): void;
   stop(): void;
   toggleExpanded(): void;
   close(): void;
+  /** Jump to a specific chunk (skip-to-section navigation). */
+  seek(chunkIndex: number): void;
   setEngine(kind: "web-speech" | "piper"): void;
   setHighlightMode(mode: ReaderSettings["highlightMode"]): void;
   setRate(rate: number): void;
@@ -190,6 +204,15 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     get engineKind() {
       return engineController.getKind();
     },
+    get headings(): HeadingMarker[] {
+      return headingChunks.map((chunkIndex) => {
+        const chunk = chunks[chunkIndex]!;
+        return { chunkIndex, text: chunk.headingText ?? chunk.text };
+      });
+    },
+    get currentHeadingIndex(): number | null {
+      return position.getPosition().headingIndex;
+    },
     play(): void {
       if (state.status === "playing") return;
       state = { status: "playing" };
@@ -220,6 +243,9 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       expanded = false;
       notifyExpanded();
       notifyState();
+    },
+    seek(chunkIndex: number): void {
+      position.seek(chunkIndex);
     },
     setEngine(kind: "web-speech" | "piper"): void {
       engineController.select(kind);
