@@ -29,12 +29,14 @@ interface RecordedSpeak {
 function fakeWebSpeech(initialHasVoices: boolean): WebSpeechEngine & {
   _setHasVoices(has: boolean): void;
   _emitsVoicesChanged(): void;
+  _emitEnd(): void;
   speaks: RecordedSpeak[];
 } {
   const speaks: RecordedSpeak[] = [];
   let has = initialHasVoices;
   const voiceCbs = new Set<(voices: Voice[]) => void>();
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
+  const endCbs = new Set<() => void>();
 
   const voices = (): Voice[] =>
     has ? [{ name: "WS Voice", lang: "en-US", voiceUri: "ws:en", isLocal: false }] : [];
@@ -59,11 +61,18 @@ function fakeWebSpeech(initialHasVoices: boolean): WebSpeechEngine & {
       boundaryCbs.add(cb);
       return () => boundaryCbs.delete(cb);
     },
+    onEnd(cb: () => void): () => void {
+      endCbs.add(cb);
+      return () => endCbs.delete(cb);
+    },
     hasVoices(): boolean {
       return has;
     },
     _setHasVoices(next: boolean): void {
       has = next;
+    },
+    _emitEnd(): void {
+      for (const cb of endCbs) cb();
     },
     _emitsVoicesChanged(): void {
       for (const cb of voiceCbs) cb(voices());
@@ -73,10 +82,15 @@ function fakeWebSpeech(initialHasVoices: boolean): WebSpeechEngine & {
 }
 
 /** A Piper fake that records `speak` so fallback routing is observable. */
-function fakePiper(): Engine & { speaks: RecordedSpeak[]; _emitsVoicesChanged(): void } {
+function fakePiper(): Engine & {
+  speaks: RecordedSpeak[];
+  _emitsVoicesChanged(): void;
+  _emitEnd(): void;
+} {
   const speaks: RecordedSpeak[] = [];
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
   const voiceCbs = new Set<(voices: Voice[]) => void>();
+  const endCbs = new Set<() => void>();
   const voices = (): Voice[] => [
     { name: "Piper Amy", lang: "en-US", voiceUri: "piper:en_US-amy", isLocal: true },
   ];
@@ -95,9 +109,16 @@ function fakePiper(): Engine & { speaks: RecordedSpeak[]; _emitsVoicesChanged():
       voiceCbs.add(cb);
       return () => voiceCbs.delete(cb);
     },
+    onEnd(cb: () => void): () => void {
+      endCbs.add(cb);
+      return () => endCbs.delete(cb);
+    },
     onBoundary(cb: (e: BoundaryEvent) => void): () => void {
       boundaryCbs.add(cb);
       return () => boundaryCbs.delete(cb);
+    },
+    _emitEnd(): void {
+      for (const cb of endCbs) cb();
     },
     _emitsVoicesChanged(): void {
       for (const cb of voiceCbs) cb(voices());
@@ -358,6 +379,49 @@ describe("engine selection / fallback controller (ticket 0007)", () => {
     dispose();
     controller.speak("second", { ...OPTS, voiceUri: "piper:en_US-amy" });
     expect(events).toHaveLength(1);
+  });
+
+  it("onEnd relays end events from the active engine only", async () => {
+    installStorage();
+    const ws = fakeWebSpeech(false); // active engine is Piper
+    const piper = fakePiper();
+    const controller = await createEngineController({ webSpeech: ws, piper });
+
+    let fired = 0;
+    controller.onEnd(() => {
+      fired++;
+    });
+
+    controller.speak("Hello", { ...OPTS, voiceUri: "piper:en_US-amy" });
+    expect(piper.speaks).toHaveLength(1);
+    expect(piper.speaks[0]?.text).toBe("Hello");
+
+    // Inactive engine firing end must NOT advance the consumer's position.
+    ws._emitEnd();
+    expect(fired).toBe(0);
+
+    piper._emitEnd();
+    expect(fired).toBe(1);
+  });
+
+  it("onEnd disposer stops further end delivery", async () => {
+    installStorage();
+    const piper = fakePiper();
+    const controller = await createEngineController({ webSpeech: fakeWebSpeech(false), piper });
+
+    let fired = 0;
+    const dispose = controller.onEnd(() => {
+      fired++;
+    });
+
+    controller.speak("first", { ...OPTS, voiceUri: "piper:en_US-amy" });
+    piper._emitEnd();
+    expect(fired).toBe(1);
+
+    dispose();
+    controller.speak("second", { ...OPTS, voiceUri: "piper:en_US-amy" });
+    piper._emitEnd();
+    expect(fired).toBe(1);
   });
 
   it("hydrates with defaults when persisted settings are corrupt (invalid selection + voiceUri)", async () => {

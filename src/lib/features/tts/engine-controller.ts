@@ -126,6 +126,7 @@ export async function createEngineController(options: {
 
   const currentCbs = new Set<(engine: ResolvedEngine) => void>();
   const voiceCbs = new Set<(voices: Voice[]) => void>();
+  const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
   const endCbs = new Set<() => void>();
 
   function notifyCurrent(): void {

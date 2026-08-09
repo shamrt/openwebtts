@@ -236,6 +236,41 @@ describe("Web Speech adapter (ticket 0004)", () => {
     expect(events).toHaveLength(0);
   });
 
+  it("onEnd fires when the utterance ends", () => {
+    synth = new FakeSynth();
+    synth.voices = VOICES;
+    install(synth);
+    const engine = createWebSpeechEngine();
+
+    let fired = 0;
+    engine.onEnd(() => {
+      fired++;
+    });
+
+    engine.speak("Hello world", { rate: 1, pitch: 1, volume: 1, voiceUri: "alex.uri" });
+    synth.spoken[0]!.emit("end", { utterance: { text: "Hello world" } });
+
+    expect(fired).toBe(1);
+  });
+
+  it("onEnd disposer stops further end delivery", () => {
+    synth = new FakeSynth();
+    synth.voices = VOICES;
+    install(synth);
+    const engine = createWebSpeechEngine();
+
+    let fired = 0;
+    const dispose = engine.onEnd(() => {
+      fired++;
+    });
+    dispose();
+
+    engine.speak("Hi", { rate: 1, pitch: 1, volume: 1, voiceUri: "alex.uri" });
+    synth.spoken[0]!.emit("end", { utterance: { text: "Hi" } });
+
+    expect(fired).toBe(0);
+  });
+
   it("onVoicesChanged fires after voiceschanged and disposer stops delivery", () => {
     synth = new FakeSynth();
     synth.voices = VOICES;

@@ -40,7 +40,7 @@ interface Utterance {
   pitch: number;
   volume: number;
   voice: SynthVoice | undefined;
-  addEventListener(type: "boundary", cb: (e: SpeechSynthesisEvent) => void): void;
+  addEventListener(type: "boundary" | "end", cb: (e: SpeechSynthesisEvent) => void): void;
 }
 
 /** Max wait (ms) for `voiceschanged` before `getVoices()` resolves with what it has. */
@@ -79,6 +79,7 @@ export interface WebSpeechEngine extends Engine {
  */
 export function createWebSpeechEngine(): WebSpeechEngine {
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
+  const endCbs = new Set<() => void>();
   return {
     speak(text: string, opts: SpeakOpts): void {
       const synth = getSynth();
@@ -99,6 +100,9 @@ export function createWebSpeechEngine(): WebSpeechEngine {
           text: e.utterance.text,
         };
         for (const cb of boundaryCbs) cb(boundary);
+      });
+      utterance.addEventListener("end", () => {
+        for (const cb of endCbs) cb();
       });
 
       synth.speak(utterance);
@@ -151,6 +155,12 @@ export function createWebSpeechEngine(): WebSpeechEngine {
       boundaryCbs.add(cb);
       return () => {
         boundaryCbs.delete(cb);
+      };
+    },
+    onEnd(cb: () => void): () => void {
+      endCbs.add(cb);
+      return () => {
+        endCbs.delete(cb);
       };
     },
 
