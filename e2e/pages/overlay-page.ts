@@ -1,5 +1,7 @@
 import { type Locator, type Page } from "@playwright/test";
 
+import type { HighlightMode } from "../../src/lib/features/settings";
+
 /**
  * Ticket 0020 — Page Object Model for the OpenWebTTS content-script overlay.
  *
@@ -9,8 +11,6 @@ import { type Locator, type Page } from "@playwright/test";
  * navigation, and the DEV test seams (highlighting) are wrapped here so the
  * specs stay declarative and DRY.
  */
-
-type HighlightMode = "off" | "paragraph" | "sentence";
 
 export class OverlayPage {
   constructor(
