@@ -1,7 +1,7 @@
 import type { HighlightMode } from "$lib/features/settings";
 import type { MessageListener } from "$lib/shared/chrome-runtime";
 
-import { getChrome } from "$lib/shared/chrome-runtime";
+import { getRuntime } from "$lib/shared/chrome-runtime";
 // Extension.js content script entrypoint (TypeScript).
 // - Mounts the Svelte overlay UI into an open Shadow DOM.
 // - Injects the overlay shell CSS (plain CSS, no Tailwind — the content-script
@@ -127,11 +127,11 @@ export default function initial() {
     () => document.removeEventListener("openwebtts:test:activate", onActivate),
   );
 
-  // Real activation: the background script sends "openwebtts:activate" when the
-  // toolbar icon is clicked (opens the side panel + activates this tab's
-  // overlay). Guarded through getChrome() so the content script imports cleanly
-  // in node (vitest) and Firefox without a `chrome` global.
-  const onMessage = getChrome()?.runtime?.onMessage;
+  // Real activation: the toolbar click (background `action.onClicked`) sends
+  // "openwebtts:activate", which activates this tab's overlay. Resolved via
+  // getRuntime() (browser ?? chrome) so the listener attaches on both Firefox
+  // and Chromium; undefined in node (vitest) so the import is clean.
+  const onMessage = getRuntime()?.onMessage;
   let runtimeListener: MessageListener | null = null;
   if (onMessage?.addListener) {
     runtimeListener = (message: unknown) => {

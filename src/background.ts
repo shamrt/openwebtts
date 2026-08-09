@@ -3,34 +3,28 @@ import { ensureOffscreenDocument } from "$lib/features/tts/offscreen-lifecycle";
 
 console.log("[From the background context] Hello from the background worker/script!");
 
-const isFirefoxLike =
-  import.meta.env.EXTENSION_PUBLIC_BROWSER === "firefox" ||
-  import.meta.env.EXTENSION_PUBLIC_BROWSER === "gecko-based";
+// MV3 unifies the toolbar API as `action` on both Chromium and Firefox. The
+// only per-browser difference is the extension global (`browser` on Firefox,
+// `chrome` on Chromium; Chrome 148+ also exposes `browser`). The in-page
+// overlay is the sole UI surface — clicking the toolbar icon just tells the
+// active tab's content script to activate it. No side panel, no sidebar.
+const api = (globalThis.browser ?? globalThis.chrome) as {
+  action: {
+    onClicked: { addListener(cb: (tab: { id?: number | null }) => void): void };
+  };
+  tabs: { sendMessage(id: number, message: unknown): Promise<unknown> };
+};
 
-if (isFirefoxLike) {
-  browser.browserAction.onClicked.addListener((tab) => {
-    browser.sidebarAction.open();
-    if (tab.id != null)
-      void browser.tabs.sendMessage(tab.id, { type: "openwebtts:activate" }).catch(() => {});
-  });
-}
-
-if (!isFirefoxLike) {
-  // setPanelBehavior only affects FUTURE action clicks — registering it
-  // inside onClicked would swallow the first toolbar click. With
-  // openPanelOnActionClick disabled, chrome.action.onClicked fires on the
-  // toolbar click so we can both open the side panel AND activate the tab.
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
-  chrome.action.onClicked.addListener((tab) => {
-    if (tab.id == null) return;
-    try {
-      chrome.sidePanel.open({ tabId: tab.id });
-    } catch (e) {
-      console.error(e);
-    }
-    void chrome.tabs.sendMessage(tab.id, { type: "openwebtts:activate" }).catch(() => {});
-  });
-}
+api.action.onClicked.addListener((tab) => {
+  if (tab.id == null) return;
+  // Diagnostic for the activation path: confirms the click fired and which
+  // tab was targeted. The sendMessage rejection (no content script on the
+  // tab, e.g. a restricted page) is logged instead of silently swallowed.
+  console.log("[OpenWebTTS] toolbar clicked; activating tab", tab.id);
+  void api.tabs
+    .sendMessage(tab.id, { type: "openwebtts:activate" })
+    .catch((e) => console.error("[OpenWebTTS] activate send failed", e));
+});
 
 // Ticket 0005 — Chromium-only offscreen document lifecycle. `chrome.offscreen`
 // exists only on Chrome/Edge; ensureOffscreenDocument is a no-op where it (or

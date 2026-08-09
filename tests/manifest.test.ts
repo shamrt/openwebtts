@@ -22,9 +22,9 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 describe("cross-browser manifest (ticket 0002)", () => {
-  it("declares both a Chromium (Chrome) and a Gecko (Firefox) target", () => {
+  it("targets Manifest V3 on both Chromium and Gecko (Firefox)", () => {
     expect(m["chromium:manifest_version"]).toBe(3);
-    expect(m["firefox:manifest_version"]).toBe(2);
+    expect(m["firefox:manifest_version"]).toBe(3);
   });
 
   it("declares the offscreen permission for Chromium targets", () => {

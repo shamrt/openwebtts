@@ -1,12 +1,15 @@
 /**
- * Ticket 0005 — narrow, node-safe typed surface over the `chrome.*` globals
- * used by the TTS audio pipeline.
+ * Ticket 0005 — narrow, node-safe typed surface over the extension globals
+ * (`chrome` on Chromium, `browser` on Firefox/Safari) used by the TTS pipeline.
  *
  * `@types/chrome` is not installed and the service worker references `chrome`
  * untyped. Importing these modules in node (vitest) must not crash, so every
- * access goes through {@link getChrome}, which returns `undefined` when the
- * `chrome` global is absent (node, and Firefox where the offscreen path is a
- * no-op). Each consumer guards its own usage.
+ * access goes through {@link getChrome}/{@link getRuntime}, which return
+ * `undefined` only when no extension global is present (node). Note: the
+ * `chrome` callback-namespace alias IS defined in Firefox content/background
+ * contexts, so getChrome does not return undefined there — the offscreen path
+ * is a no-op on Firefox because `chrome.offscreen` is absent, not the global.
+ * Each consumer guards its own usage.
  */
 
 /** A `chrome.runtime.onMessage` listener (may return a promise in MV3). */
@@ -55,4 +58,18 @@ export function getChrome(): ChromeSurface | undefined {
   const g = globalThis as Record<string, unknown>;
   const c = g.chrome;
   return typeof c === "object" && c !== null ? (c as ChromeSurface) : undefined;
+}
+
+/**
+ * Resolve the runtime message-bus surface from whichever extension global the
+ * host exposes — `browser` (Firefox/Safari, promise APIs) preferred, falling
+ * back to `chrome` (Chromium; also exposed as `browser` on Chrome 148+). Both
+ * globals share one message bus, so a listener attached via either receives
+ * messages sent via the other. Returns `undefined` in node (no extension
+ * globals), so callers import cleanly under vitest.
+ */
+export function getRuntime(): ChromeRuntimeSurface | undefined {
+  const g = globalThis as Record<string, unknown>;
+  const ns = g.browser ?? g.chrome;
+  return typeof ns === "object" && ns !== null ? (ns as ChromeSurface).runtime : undefined;
 }
