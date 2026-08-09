@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { EngineKind } from "$lib/features/tts/controller.js";
+  import type { ResolvedEngine, Voice } from "$lib/features/tts";
   import type { HighlightMode } from "$lib/features/settings/settings.js";
   import type { Writable } from "svelte/store";
 
@@ -8,10 +8,13 @@
   let {
     expanded,
     playing,
-    engineKind = "web-speech",
-    highlightMode = "paragraph",
-    rate = [1],
-    volume = [1],
+    engineKind = writable("web-speech"),
+    highlightMode = writable("paragraph"),
+    rate = writable([1]),
+    volume = writable([1]),
+    pitch = writable([1]),
+    voices = writable<Voice[]>([]),
+    voiceUri = writable(""),
     positionPercent,
     chunkText,
     headings = [],
@@ -24,14 +27,19 @@
     onHighlightModeChange,
     onRateChange,
     onVolumeChange,
+    onPitchChange,
+    onVoiceChange,
     onClose,
   }: {
     expanded: Writable<boolean>;
     playing: Writable<boolean>;
-    engineKind: EngineKind;
-    highlightMode: HighlightMode;
-    rate: number[];
-    volume: number[];
+    engineKind: Writable<ResolvedEngine>;
+    highlightMode: Writable<HighlightMode>;
+    rate: Writable<number[]>;
+    volume: Writable<number[]>;
+    pitch: Writable<number[]>;
+    voices: Writable<Voice[]>;
+    voiceUri: Writable<string>;
     positionPercent: Writable<number>;
     chunkText: Writable<string>;
     headings: HeadingMarker[];
@@ -40,14 +48,16 @@
     onToggleExpanded: () => void;
     onStop: () => void;
     onSeek: (chunkIndex: number) => void;
-    onEngineChange: (kind: EngineKind) => void;
+    onEngineChange: (kind: ResolvedEngine) => void;
     onHighlightModeChange: (mode: HighlightMode) => void;
     onRateChange: (value: number) => void;
     onVolumeChange: (value: number) => void;
+    onPitchChange: (value: number) => void;
+    onVoiceChange: (voiceUri: string) => void;
     onClose: () => void;
   } = $props();
 
-  const engineOptions: { value: EngineKind; label: string }[] = [
+  const engineOptions: { value: ResolvedEngine; label: string }[] = [
     { value: "web-speech", label: "Web Speech" },
     { value: "piper", label: "WASM Piper" },
   ];
@@ -157,9 +167,9 @@
             <span class="overlay_label_text">Engine</span>
             <select
               class="overlay_select"
-              value={engineKind}
+              value={$engineKind}
               onchange={(e) =>
-                onEngineChange((e.currentTarget as HTMLSelectElement).value as EngineKind)}
+                onEngineChange((e.currentTarget as HTMLSelectElement).value as ResolvedEngine)}
             >
               {#each engineOptions as opt}
                 <option value={opt.value}>{opt.label}</option>
@@ -168,10 +178,24 @@
           </label>
 
           <label class="overlay_label">
+            <span class="overlay_label_text">Voice</span>
+            <select
+              class="overlay_select"
+              value={$voiceUri}
+              onchange={(e) => onVoiceChange((e.currentTarget as HTMLSelectElement).value)}
+            >
+              <option value="">Default</option>
+              {#each $voices as voice}
+                <option value={voice.voiceUri}>{voice.name} ({voice.lang})</option>
+              {/each}
+            </select>
+          </label>
+
+          <label class="overlay_label">
             <span class="overlay_label_text">Highlight</span>
             <select
               class="overlay_select"
-              value={highlightMode}
+              value={$highlightMode}
               onchange={(e) =>
                 onHighlightModeChange((e.currentTarget as HTMLSelectElement).value as HighlightMode)}
             >
@@ -182,27 +206,40 @@
           </label>
 
           <label class="overlay_label">
-            <span class="overlay_label_text">Speed {rate[0].toFixed(2)}x</span>
+            <span class="overlay_label_text">Speed {$rate[0].toFixed(2)}x</span>
             <input
               type="range"
               class="overlay_range"
               min="0.5"
               max="2"
               step="0.05"
-              value={rate[0]}
+              value={$rate[0]}
               oninput={(e) => onRateChange(Number((e.currentTarget as HTMLInputElement).value))}
             />
           </label>
 
           <label class="overlay_label">
-            <span class="overlay_label_text">Volume {volume[0].toFixed(2)}</span>
+            <span class="overlay_label_text">Pitch {$pitch[0].toFixed(2)}</span>
+            <input
+              type="range"
+              class="overlay_range"
+              min="0.5"
+              max="2"
+              step="0.05"
+              value={$pitch[0]}
+              oninput={(e) => onPitchChange(Number((e.currentTarget as HTMLInputElement).value))}
+            />
+          </label>
+
+          <label class="overlay_label">
+            <span class="overlay_label_text">Volume {$volume[0].toFixed(2)}</span>
             <input
               type="range"
               class="overlay_range"
               min="0"
               max="1"
               step="0.05"
-              value={volume[0]}
+              value={$volume[0]}
               oninput={(e) => onVolumeChange(Number((e.currentTarget as HTMLInputElement).value))}
             />
           </label>

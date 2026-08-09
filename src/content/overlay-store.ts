@@ -7,8 +7,7 @@
 
 import type { ArticleChunk } from "$lib/features/extraction/html-extractor.js";
 import type { ReaderSettings, SettingsStore } from "$lib/features/settings/settings.js";
-import type { EngineController } from "$lib/features/tts/controller.js";
-import type { Engine, SpeakOpts } from "$lib/features/tts/engine.js";
+import type { EngineController, ResolvedEngine, SpeakOpts, Voice } from "$lib/features/tts";
 
 import { extractArticle } from "$lib/features/extraction/html-extractor.js";
 import {
@@ -21,7 +20,12 @@ import {
   createChromePositionStorage,
 } from "$lib/features/reading/position.js";
 import { DEFAULT_SETTINGS } from "$lib/features/settings/settings.js";
-import { createEngineController } from "$lib/features/tts/controller.js";
+import { createSettingsStore, type StorageArea } from "$lib/features/settings/settings.js";
+import {
+  createEngineController,
+  createPiperEngine,
+  createWebSpeechEngine,
+} from "$lib/features/tts";
 
 export type OverlayState = { status: "idle" } | { status: "playing" } | { status: "paused" };
 
@@ -38,11 +42,17 @@ export interface OverlayStore {
   readonly expanded: boolean;
   readonly currentChunk: ArticleChunk | null;
   readonly positionPercent: number;
-  readonly engineKind: "web-speech" | "piper";
+  readonly engineKind: ResolvedEngine;
+  /** Voices available on the active engine (ticket 0015). */
+  readonly voices: Voice[];
   /** Heading chunks in reading order, for the skip-to-section slider. */
   readonly headings: HeadingMarker[];
   /** Index into {@link headings} for the current section, or null when none. */
   readonly currentHeadingIndex: number | null;
+  /** Current settings snapshot. */
+  readonly settings: ReaderSettings;
+  /** Resolves once the engine controller is hydrated and wired. */
+  readonly ready: Promise<void>;
   play(): void;
   pause(): void;
   stop(): void;
@@ -50,13 +60,19 @@ export interface OverlayStore {
   close(): void;
   /** Jump to a specific chunk (skip-to-section navigation). */
   seek(chunkIndex: number): void;
-  setEngine(kind: "web-speech" | "piper"): void;
+  /** Select an engine kind; persisted by the controller. */
+  setEngine(kind: ResolvedEngine): Promise<void>;
   setHighlightMode(mode: ReaderSettings["highlightMode"]): void;
-  setRate(rate: number): void;
-  setVolume(volume: number): void;
+  setRate(rate: number): Promise<void>;
+  setVolume(volume: number): Promise<void>;
+  setPitch(pitch: number): Promise<void>;
+  setVoice(voiceUri: string): Promise<void>;
   onStateChange(listener: (state: OverlayState) => void): () => void;
   onChunkChange(listener: (chunk: ArticleChunk | null) => void): () => void;
   onExpandedChange(listener: (expanded: boolean) => void): () => void;
+  onEngineChange(listener: (kind: ResolvedEngine) => void): () => void;
+  onSettingsChange(listener: (settings: ReaderSettings) => void): () => void;
+  onVoicesChange(listener: (voices: Voice[]) => void): () => void;
   /** DEV test seam: drive the highlighter as a boundary event would. */
   testDriveHighlight(chunkIndex: number, charOffset: number): void;
   /** DEV test seam: clear the active highlight. */
@@ -69,7 +85,7 @@ export interface OverlayStore {
 export interface OverlayDependencies {
   /** Optional settings store; defaults to an in-memory fallback. */
   settingsStore?: SettingsStore;
-  /** Optional engine controller; defaults to an empty Piper catalog. */
+  /** Optional engine controller; defaults to the hybrid Web Speech/Piper controller. */
   engineController?: EngineController;
 }
 
@@ -87,24 +103,40 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     storage: createChromePositionStorage(),
     url: location.href,
   });
-  const engineController = deps.engineController ?? createEngineController({ piperVoices: [] });
   const settingsStore = deps.settingsStore ?? createMemorySettingsStore();
+  // The engine controller hydrates its persisted selection from storage
+  // asynchronously; the store stays constructible synchronously and exposes
+  // `ready` for consumers (and tests) that need the resolved engine.
+  const engineControllerPromise = deps.engineController
+    ? Promise.resolve(deps.engineController)
+    : createEngineController({
+        webSpeech: createWebSpeechEngine(),
+        piper: createPiperEngine({ voices: [] }),
+      });
 
-  let state: OverlayState = { status: chunks.length > 0 ? "idle" : "idle" };
+  let state: OverlayState = { status: "idle" };
   let expanded = false;
   let settings = { ...DEFAULT_SETTINGS };
   // True once the highlight mode is set explicitly (UI or test seam). Prevents
   // the async settings-load init from clobbering it with the stored default.
   let modePinned = false;
-  let engine: Engine = engineController.getEngine();
+  let engine: EngineController | null = null;
+  let engineKind: ResolvedEngine = "piper";
+  let voices: Voice[] = [];
   let currentChunk: ArticleChunk | null = chunks[0] ?? null;
   let positionPercent = position.getPosition().percentComplete;
   const highlighter = createHighlighter(settings.highlightMode);
   let boundaryDisposer: (() => void) | null = null;
+  let engineDisposer: (() => void) | null = null;
+  let voicesDisposer: (() => void) | null = null;
+  let cleanedUp = false;
 
   const stateListeners = new Set<(state: OverlayState) => void>();
   const chunkListeners = new Set<(chunk: ArticleChunk | null) => void>();
   const expandedListeners = new Set<(expanded: boolean) => void>();
+  const engineListeners = new Set<(kind: ResolvedEngine) => void>();
+  const settingsListeners = new Set<(settings: ReaderSettings) => void>();
+  const voicesListeners = new Set<(voices: Voice[]) => void>();
 
   function notifyState(): void {
     for (const listener of stateListeners) listener(state);
@@ -117,34 +149,33 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   function notifyExpanded(): void {
     for (const listener of expandedListeners) listener(expanded);
   }
+
+  function notifyEngineKind(): void {
+    for (const listener of engineListeners) listener(engineKind);
+  }
+
+  function notifySettings(): void {
+    for (const listener of settingsListeners) listener({ ...settings });
+  }
+
+  function notifyVoices(): void {
+    for (const listener of voicesListeners) listener(voices);
+  }
+
   function updateCurrentChunk(): void {
     currentChunk = chunks[position.getPosition().chunkIndex] ?? null;
     notifyChunk();
   }
 
-  function syncEngine(): void {
-    engine = engineController.getEngine();
-    if (boundaryDisposer) {
-      boundaryDisposer();
-      boundaryDisposer = null;
-    }
-    boundaryDisposer = engine.onBoundary((e) => {
-      if (state.status !== "playing") return;
-      // Highlight the chunk currently being spoken, then advance position.
-      if (currentChunk) {
-        if (settings.highlightMode === "paragraph") {
-          highlighter.set(toHighlightUnit(currentChunk));
-        } else if (settings.highlightMode === "sentence") {
-          highlighter.set(toSentenceHighlightUnit(currentChunk, e.charIndex));
-        }
-      }
-      position.next();
-      updateCurrentChunk();
-    });
+  /** Re-read the active engine's voice list (engine switch, voiceschanged). */
+  async function refreshVoices(): Promise<void> {
+    if (!engine) return;
+    voices = await engine.getVoices();
+    notifyVoices();
   }
 
   function speakCurrent(): void {
-    if (!currentChunk) return;
+    if (!currentChunk || !engine) return;
     const opts: SpeakOpts = {
       rate: settings.rate,
       pitch: settings.pitch,
@@ -164,11 +195,13 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       if (modePinned) {
         settings = { ...s, highlightMode: settings.highlightMode };
         highlighter.setMode(settings.highlightMode);
+        notifySettings();
         return;
       }
     }
     settings = s;
     highlighter.setMode(s.highlightMode);
+    notifySettings();
   });
 
   const positionDisposer = position.onChange(() => {
@@ -176,14 +209,38 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     updateCurrentChunk();
   });
 
-  const engineDisposer = engineController.onChange(() => {
-    syncEngine();
+  // Wire the engine once the controller has hydrated its persisted selection.
+  // The controller is a drop-in Engine: it relays speak/stop/pause/boundaries
+  // from whichever backend is resolved, so no re-wiring is needed on switch.
+  const ready = engineControllerPromise.then(async (controller) => {
+    if (cleanedUp) return;
+    engine = controller;
+    engineKind = controller.getCurrentEngine();
+    notifyEngineKind();
+    boundaryDisposer = controller.onBoundary((e) => {
+      if (state.status !== "playing") return;
+      // Highlight the chunk currently being spoken, then advance position.
+      if (currentChunk) {
+        if (settings.highlightMode === "paragraph") {
+          highlighter.set(toHighlightUnit(currentChunk));
+        } else if (settings.highlightMode === "sentence") {
+          highlighter.set(toSentenceHighlightUnit(currentChunk, e.charIndex));
+        }
+      }
+      position.next();
+      updateCurrentChunk();
+    });
+    engineDisposer = controller.onCurrentEngine((kind) => {
+      engineKind = kind;
+      notifyEngineKind();
+      void refreshVoices();
+    });
+    voicesDisposer = controller.onVoicesChanged((next) => {
+      voices = next;
+      notifyVoices();
+    });
+    await refreshVoices();
   });
-
-  // Initialize. Persisted settings are applied by the settingsDisposer's
-  // initial-load fire once the store loads.
-  syncEngine();
-  updateCurrentChunk();
 
   return {
     get state() {
@@ -202,7 +259,13 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       return positionPercent;
     },
     get engineKind() {
-      return engineController.getKind();
+      return engineKind;
+    },
+    get voices() {
+      return voices;
+    },
+    get ready() {
+      return ready;
     },
     get headings(): HeadingMarker[] {
       return headingChunks.map((chunkIndex) => {
@@ -216,17 +279,20 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     play(): void {
       if (state.status === "playing") return;
       state = { status: "playing" };
-      speakCurrent();
       notifyState();
+      void ready.then(() => {
+        if (state.status !== "playing") return;
+        speakCurrent();
+      });
     },
     pause(): void {
       if (state.status !== "playing") return;
-      engine.pause();
       state = { status: "paused" };
       notifyState();
+      void ready.then(() => engine?.pause());
     },
     stop(): void {
-      engine.stop();
+      void ready.then(() => engine?.stop());
       highlighter.clear();
       state = { status: "idle" };
       position.seek(0);
@@ -238,7 +304,7 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       notifyExpanded();
     },
     close(): void {
-      engine.stop();
+      void ready.then(() => engine?.stop());
       highlighter.clear();
       expanded = false;
       notifyExpanded();
@@ -247,18 +313,27 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     seek(chunkIndex: number): void {
       position.seek(chunkIndex);
     },
-    setEngine(kind: "web-speech" | "piper"): void {
-      engineController.select(kind);
+    async setEngine(kind: ResolvedEngine): Promise<void> {
+      await ready;
+      if (!engine) return;
+      await engine.setSelection(kind);
+      await refreshVoices();
     },
     setHighlightMode(mode: ReaderSettings["highlightMode"]): void {
       modePinned = true;
       void settingsStore.set({ highlightMode: mode });
     },
-    setRate(rate: number): void {
-      void settingsStore.set({ rate });
+    setRate(rate: number): Promise<void> {
+      return settingsStore.set({ rate });
     },
-    setVolume(volume: number): void {
-      void settingsStore.set({ volume });
+    setVolume(volume: number): Promise<void> {
+      return settingsStore.set({ volume });
+    },
+    setPitch(pitch: number): Promise<void> {
+      return settingsStore.set({ pitch });
+    },
+    setVoice(voiceUri: string): Promise<void> {
+      return settingsStore.set({ voiceUri });
     },
     onStateChange(listener: (state: OverlayState) => void): () => void {
       stateListeners.add(listener);
@@ -276,6 +351,24 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       expandedListeners.add(listener);
       return () => {
         expandedListeners.delete(listener);
+      };
+    },
+    onEngineChange(listener: (kind: ResolvedEngine) => void): () => void {
+      engineListeners.add(listener);
+      return () => {
+        engineListeners.delete(listener);
+      };
+    },
+    onSettingsChange(listener: (settings: ReaderSettings) => void): () => void {
+      settingsListeners.add(listener);
+      return () => {
+        settingsListeners.delete(listener);
+      };
+    },
+    onVoicesChange(listener: (voices: Voice[]) => void): () => void {
+      voicesListeners.add(listener);
+      return () => {
+        voicesListeners.delete(listener);
       };
     },
     testDriveHighlight(chunkIndex: number, charOffset: number): void {
@@ -297,17 +390,17 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       highlighter.setMode(mode);
     },
     cleanup(): void {
-      engine.stop();
+      cleanedUp = true;
+      void ready.then(() => engine?.stop());
       highlighter.clear();
       settingsDisposer();
       positionDisposer();
-      engineDisposer();
       if (boundaryDisposer) boundaryDisposer();
+      if (engineDisposer) engineDisposer();
+      if (voicesDisposer) voicesDisposer();
     },
   };
 }
-
-import { createSettingsStore, type StorageArea } from "$lib/features/settings/settings.js";
 
 function createMemorySettingsStore(): SettingsStore {
   const area: StorageArea = {

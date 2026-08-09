@@ -54,6 +54,13 @@ export default function initial() {
     positionPercent: writable(overlayStore.positionPercent),
     chunkText: writable(overlayStore.currentChunk?.text ?? ""),
     currentHeadingIndex: writable(overlayStore.currentHeadingIndex),
+    engineKind: writable(overlayStore.engineKind),
+    highlightMode: writable(overlayStore.settings.highlightMode),
+    rate: writable([overlayStore.settings.rate]),
+    volume: writable([overlayStore.settings.volume]),
+    pitch: writable([overlayStore.settings.pitch]),
+    voiceUri: writable(overlayStore.settings.voiceUri),
+    voices: writable(overlayStore.voices),
   };
   const reactiveDisposers = [
     overlayStore.onStateChange((s) => ui.playing.set(s.status === "playing")),
@@ -63,6 +70,15 @@ export default function initial() {
       ui.positionPercent.set(overlayStore.positionPercent);
       ui.currentHeadingIndex.set(overlayStore.currentHeadingIndex);
     }),
+    overlayStore.onEngineChange((k) => ui.engineKind.set(k)),
+    overlayStore.onSettingsChange((s) => {
+      ui.highlightMode.set(s.highlightMode);
+      ui.rate.set([s.rate]);
+      ui.volume.set([s.volume]);
+      ui.pitch.set([s.pitch]);
+      ui.voiceUri.set(s.voiceUri);
+    }),
+    overlayStore.onVoicesChange((v) => ui.voices.set(v)),
   ];
   // DEV-only test seam: E2E tests dispatch CustomEvents on `document` to drive
   // highlight modes and boundary-style highlighting deterministically, without
@@ -99,26 +115,21 @@ export default function initial() {
   );
 
   // Mount the Svelte overlay. Reactive state (expanded/playing/position/
-  // chunkText) is passed as Svelte writable stores so the overlay re-renders
-  // on store changes; the rest are plain getters (native controls manage their
-  // own displayed value after user interaction). The mount result is unused.
+  // chunkText/settings/voices) is passed as Svelte writable stores so the
+  // overlay re-renders on store changes — including the async settings load
+  // and engine resolution. The mount result is unused.
   const _app = mount(OverlayApp, {
     target: contentDiv,
     props: {
       expanded: ui.expanded,
       playing: ui.playing,
-      get engineKind() {
-        return overlayStore.engineKind;
-      },
-      get highlightMode() {
-        return overlayStore.settings.highlightMode;
-      },
-      get rate() {
-        return [overlayStore.settings.rate];
-      },
-      get volume() {
-        return [overlayStore.settings.volume];
-      },
+      engineKind: ui.engineKind,
+      highlightMode: ui.highlightMode,
+      rate: ui.rate,
+      volume: ui.volume,
+      pitch: ui.pitch,
+      voices: ui.voices,
+      voiceUri: ui.voiceUri,
       positionPercent: ui.positionPercent,
       chunkText: ui.chunkText,
       headings: overlayStore.headings,
@@ -140,16 +151,22 @@ export default function initial() {
         overlayStore.stop();
       },
       onEngineChange(kind) {
-        overlayStore.setEngine(kind);
+        void overlayStore.setEngine(kind);
       },
       onHighlightModeChange(mode) {
         overlayStore.setHighlightMode(mode);
       },
       onRateChange(rate) {
-        overlayStore.setRate(rate);
+        void overlayStore.setRate(rate);
       },
       onVolumeChange(volume) {
-        overlayStore.setVolume(volume);
+        void overlayStore.setVolume(volume);
+      },
+      onPitchChange(pitch) {
+        void overlayStore.setPitch(pitch);
+      },
+      onVoiceChange(voiceUri) {
+        void overlayStore.setVoice(voiceUri);
       },
       onClose() {
         overlayStore.close();
