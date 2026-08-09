@@ -23,6 +23,7 @@ class FakeEngine implements Engine {
   voices: Voice[] = [];
   private voiceCbs = new Set<(voices: Voice[]) => void>();
   private boundaryCbs = new Set<(e: BoundaryEvent) => void>();
+  private endCbs = new Set<() => void>();
 
   speak(text: string, opts: SpeakOpts): void {
     this.spoken.push({ text, opts });
@@ -57,10 +58,20 @@ class FakeEngine implements Engine {
       this.boundaryCbs.delete(cb);
     };
   }
+  onEnd(cb: () => void): () => void {
+    this.endCbs.add(cb);
+    return () => {
+      this.endCbs.delete(cb);
+    };
+  }
 
   /** Test-only emitter mimicking the engine firing a boundary event. */
   emitBoundary(e: BoundaryEvent): void {
     for (const cb of this.boundaryCbs) cb(e);
+  }
+  /** Test-only emitter mimicking the engine firing an end-of-utterance event. */
+  emitEnd(): void {
+    for (const cb of this.endCbs) cb();
   }
 
   /** Test-only emitter mimicking the engine firing a voices-changed event. */
@@ -140,6 +151,20 @@ describe("Engine interface (ticket 0003)", () => {
     off();
     fake.emitBoundary({ charIndex: 12 });
     expect(received).toHaveLength(2);
+  });
+  it("onEnd relays utterance completion and the disposer stops delivery", () => {
+    const fake = new FakeEngine();
+    let calls = 0;
+    const off = fake.onEnd(() => {
+      calls += 1;
+    });
+
+    fake.emitEnd();
+    fake.emitEnd();
+    off();
+    fake.emitEnd();
+
+    expect(calls).toBe(2);
   });
 
   it("onVoicesChanged relays the voice list and the disposer stops delivery", () => {

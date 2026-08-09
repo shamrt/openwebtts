@@ -126,7 +126,7 @@ export async function createEngineController(options: {
 
   const currentCbs = new Set<(engine: ResolvedEngine) => void>();
   const voiceCbs = new Set<(voices: Voice[]) => void>();
-  const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
+  const endCbs = new Set<() => void>();
 
   function notifyCurrent(): void {
     for (const cb of currentCbs) cb(current);
@@ -161,6 +161,15 @@ export async function createEngineController(options: {
   options.piper.onBoundary((e) => {
     if (current === "piper") for (const cb of boundaryCbs) cb(e);
   });
+  // End-of-utterance relay only from the engine currently driving playback —
+  // the inactive engine firing `end` (e.g. a cancelled superseded utterance)
+  // must not advance the consumer's position.
+  options.webSpeech.onEnd(() => {
+    if (current === "web-speech") for (const cb of endCbs) cb();
+  });
+  options.piper.onEnd(() => {
+    if (current === "piper") for (const cb of endCbs) cb();
+  });
 
   return {
     speak(text: string, opts: SpeakOpts): void {
@@ -185,6 +194,10 @@ export async function createEngineController(options: {
     onBoundary(cb: (e: BoundaryEvent) => void): () => void {
       boundaryCbs.add(cb);
       return () => boundaryCbs.delete(cb);
+    },
+    onEnd(cb: () => void): () => void {
+      endCbs.add(cb);
+      return () => endCbs.delete(cb);
     },
     getCurrentEngine(): ResolvedEngine {
       return current;

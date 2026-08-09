@@ -51,5 +51,11 @@ export interface Engine {
   resume(): void;
   getVoices(): Promise<Voice[]>;
   onVoicesChanged(cb: (voices: Voice[]) => void): () => void;
-  onBoundary(cb: (e: BoundaryEvent) => void): () => void;
+  /**
+   * An utterance finished speaking. Fires on natural completion AND when
+   * cancelled (e.g. `speechSynthesis.cancel()` also fires the utterance
+   * `end` event); consumers MUST guard on their own play state before
+   * treating this as "advance to the next chunk".
+   */
+  onEnd(cb: () => void): () => void;
 }
