@@ -19,6 +19,7 @@
     "test": "vp test",
     "test:coverage": "vp test --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:firefox": "OWT_E2E_BROWSER=firefox playwright test e2e/overlay.spec.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -38,6 +39,8 @@
     "lint-staged": "^17.3.0",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
+    "playwright-webextext": "^0.0.5",
+    "tslib": "^2.8.1",
     "typescript": "7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"

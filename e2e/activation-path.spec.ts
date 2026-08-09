@@ -7,6 +7,15 @@ import { test, expect } from "./fixtures";
  * render the overlay. The seam-based activate() in the POM bypasses this
  * path, so it is not covered by the other specs.
  */
+// The service-worker runtime-message path is Chromium-only: Firefox runs the
+// background as an event page, so `context.serviceWorkers()` is empty there.
+// The overlay's render-on-activate behavior is covered cross-browser by the
+// test-seam activation in overlay.spec.ts; this spec guards the real
+// background->content message delivery on the platform that exposes it.
+test.skip(
+  process.env.OWT_E2E_BROWSER === "firefox",
+  "service-worker runtime-message path is Chromium-only",
+);
 test("real runtime message activates the overlay", async ({ page, serverUrl }) => {
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
 

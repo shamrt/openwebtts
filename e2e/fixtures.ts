@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext } from "@playwright/test";
+import { chromium, firefox, type BrowserType, type BrowserContext } from "@playwright/test";
 import { test as base, expect } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
+import { withExtension } from "playwright-webextext";
 
 import { OverlayPage } from "./pages/overlay-page";
 
@@ -17,13 +18,21 @@ import { OverlayPage } from "./pages/overlay-page";
  *   1. Start `extension dev --no-browser` (compiles the extension without
  *      launching a browser; writes dist/extension-js/<browser>/ready.json).
  *   2. Poll ready.json until `status === "ready"` and read `distPath`.
- *   3. Launch Chromium with the unpacked extension loaded from `distPath`.
+ *   3. Launch the browser with the unpacked extension loaded from `distPath`.
  *
- * Chromium cannot load unpacked extensions in headless mode, so the browser is
- * launched headed (`headless: false`); CI on Linux must run under `xvfb-run`.
+ * Cross-browser via `playwright-webextext` (`withExtension`): for Chromium it
+ * passes the same `--load-extension` persistent-context flags the harness used
+ * to pass by hand; for Firefox it installs the temporary add-on over Firefox's
+ * remote debugging protocol and overrides the MV3 content-script permission
+ * prompt (requires `browser_specific_settings.gecko.id`, which the manifest
+ * declares). Select the target with `OWT_E2E_BROWSER=firefox` (default
+ * `chromium`); `test:e2e` and `test:e2e:firefox` set it.
+ *
+ * Neither browser loads unpacked/temporary extensions headless, so the context
+ * is headed (`headless: false`); CI on Linux must run under `xvfb-run`.
  */
 
-const BROWSER = "chromium";
+const BROWSER = (process.env.OWT_E2E_BROWSER ?? "chromium") as "chromium" | "firefox";
 const ROOT = resolve(process.cwd());
 const READY_JSON = join(ROOT, "dist", "extension-js", BROWSER, "ready.json");
 const FIXTURES_DIR = resolve(ROOT, "e2e", "fixtures");
@@ -101,9 +110,12 @@ function killTree(proc: ChildProcess): void {
   }
 }
 
+const browserType: BrowserType = BROWSER === "firefox" ? firefox : chromium;
+
 export const test = base.extend<{ serverUrl: string; overlayPage: OverlayPage }>({
-  // Override the default context with a persistent Chromium context that has
-  // the Extension.js build loaded as an unpacked extension.
+  // Override the default context with a persistent context that has the
+  // Extension.js build loaded. `withExtension` abstracts the per-browser load
+  // mechanism (Chromium command-line flags vs Firefox RDP temp-add-on install).
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures require a destructured first arg; this one has no deps.
   context: async ({}, use) => {
     // --no-reload strips the content-script hot-reload runtime: with HMR on, a
@@ -123,17 +135,16 @@ export const test = base.extend<{ serverUrl: string; overlayPage: OverlayPage }>
     try {
       const { distPath } = await waitForReady();
       const profile = mkdtempSync(join(tmpdir(), "owt-e2e-"));
-      const context = await chromium.launchPersistentContext(profile, {
+      const launcher = withExtension(browserType, distPath);
+      // Chromium-only conveniences; Firefox is launched without extra flags.
+      const args = BROWSER === "firefox" ? [] : ["--no-first-run", "--no-default-browser-check"];
+      const context = await launcher.launchPersistentContext(profile, {
         headless: false,
-        args: [
-          `--disable-extensions-except=${distPath}`,
-          `--load-extension=${distPath}`,
-          "--no-first-run",
-          "--no-default-browser-check",
-        ],
+        args,
       });
       await use(context);
       await context.close();
+      rmSync(profile, { recursive: true, force: true });
     } finally {
       killTree(dev);
     }
