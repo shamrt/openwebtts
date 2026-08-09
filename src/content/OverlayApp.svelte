@@ -20,10 +20,14 @@
     chunkText,
     headings = [],
     currentHeadingIndex,
+    canBack = writable(false),
+    canForward = writable(false),
     onPlayPause,
     onToggleExpanded,
     onStop,
-    onSeek,
+    onSeekPercent,
+    onBack,
+    onForward,
     onEngineChange,
     onHighlightModeChange,
     onRateChange,
@@ -46,10 +50,14 @@
     chunkText: Writable<string>;
     headings: HeadingMarker[];
     currentHeadingIndex: Writable<number | null>;
+    canBack: Writable<boolean>;
+    canForward: Writable<boolean>;
     onPlayPause: () => void;
     onToggleExpanded: () => void;
     onStop: () => void;
-    onSeek: (chunkIndex: number) => void;
+    onSeekPercent: (percent: number) => void;
+    onBack: () => void;
+    onForward: () => void;
     onEngineChange: (kind: ResolvedEngine) => void;
     onHighlightModeChange: (mode: HighlightMode) => void;
     onRateChange: (value: number) => void;
@@ -94,10 +102,28 @@
     <button
       type="button"
       class="overlay_btn overlay_btn--icon"
+      aria-label="Previous chunk"
+      disabled={!$canBack}
+      onclick={onBack}
+    >
+      ⏮
+    </button>
+    <button
+      type="button"
+      class="overlay_btn overlay_btn--icon"
       onclick={onPlayPause}
       aria-label={$playing ? "Pause" : "Play"}
     >
       {$playing ? "⏸" : "▶"}
+    </button>
+    <button
+      type="button"
+      class="overlay_btn overlay_btn--icon"
+      aria-label="Next chunk"
+      disabled={!$canForward}
+      onclick={onForward}
+    >
+      ⏭
     </button>
     <button
       type="button"
@@ -115,8 +141,26 @@
       <section class="overlay_section">
         <h3 class="overlay_section_title">Playback</h3>
         <div class="overlay_row">
+          <button
+            type="button"
+            class="overlay_btn overlay_btn--outline"
+            aria-label="Previous chunk"
+            disabled={!$canBack}
+            onclick={onBack}
+          >
+            ⏮ Back
+          </button>
           <button type="button" class="overlay_btn" onclick={onPlayPause}>
             {$playing ? "Pause" : "Play"}
+          </button>
+          <button
+            type="button"
+            class="overlay_btn overlay_btn--outline"
+            aria-label="Next chunk"
+            disabled={!$canForward}
+            onclick={onForward}
+          >
+            Next ⏭
           </button>
           <button type="button" class="overlay_btn overlay_btn--outline" onclick={onStop}>
             Stop
@@ -136,17 +180,17 @@
               type="range"
               class="overlay_range overlay_range--nav"
               min="0"
-              max={headings.length - 1}
-              step="1"
-              value={$currentHeadingIndex ?? 0}
+              max="100"
+              step="0.1"
+              value={$positionPercent}
               oninput={(e) =>
-                onSeek(headings[Number((e.currentTarget as HTMLInputElement).value)]!.chunkIndex)}
+                onSeekPercent(Number((e.currentTarget as HTMLInputElement).value))}
               aria-label="Skip to section"
               list="openwebtts-heading-markers"
             />
             <datalist id="openwebtts-heading-markers">
-              {#each headings as heading, i}
-                <option value={i} label={heading.text}></option>
+              {#each headings as heading}
+                <option value={heading.percent} label={heading.text}></option>
               {/each}
             </datalist>
             <div class="overlay_nav_readout">

@@ -40,6 +40,13 @@ export class OverlayPage {
     });
   }
 
+  /** The 3-chunk fixture used by the ticket 0022 navigation spec. */
+  async gotoThreeChunks(): Promise<void> {
+    await this.page.goto(`${this.serverUrl}/three-chunks.html`, {
+      waitUntil: "domcontentloaded",
+    });
+  }
+
   /**
    * Activate the overlay. The overlay stays hidden until the extension icon is
    * clicked; E2E drives the same path via the openwebtts:test:activate seam
@@ -67,6 +74,25 @@ export class OverlayPage {
     return this.page.locator('[aria-label="Pause"]');
   }
 
+  /** The expanded panel's play/pause control (text-labeled). */
+  expandedPlayPause(): Locator {
+    return this.page.locator(".overlay_expanded").getByRole("button", { name: /Play|Pause/ });
+  }
+
+  /** The expanded panel's prev/next chunk buttons (ticket 0022). */
+  backButton(): Locator {
+    return this.page.locator(".overlay_expanded").getByRole("button", { name: "Previous chunk" });
+  }
+
+  forwardButton(): Locator {
+    return this.page.locator(".overlay_expanded").getByRole("button", { name: "Next chunk" });
+  }
+
+  /** The expanded panel's live progress line: "{percent}% — {chunk text}". */
+  progress(): Locator {
+    return this.page.locator(".overlay_progress");
+  }
+
   /**
    * Expand the collapsed overlay to reveal the navigation section. The handle
    * is a genuine toggle (role=button, onclick), but its width shifts as the
@@ -86,9 +112,15 @@ export class OverlayPage {
     return this.page.locator(".overlay_range--nav");
   }
 
-  /** Jump the slider to the 0-based heading marker index. */
+  /**
+   * Jump the slider to the 0-based heading marker. The slider is a continuous
+   * char-weighted 0–100 progress bar (ticket 0022); each marker sits at its
+   * heading chunk's percent, so the marker's own value is the fill target.
+   */
   async dragNavTo(markerIndex: number): Promise<void> {
-    await this.navSlider().fill(String(markerIndex));
+    const marker = this.page.locator("#openwebtts-heading-markers option").nth(markerIndex);
+    const value = (await marker.getAttribute("value")) ?? "";
+    await this.navSlider().fill(value);
   }
 
   navHeading(): Locator {

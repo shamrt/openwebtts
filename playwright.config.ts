@@ -19,5 +19,9 @@ export default defineConfig({
     // Unpacked extensions cannot load in headless Chromium; headed is required
     // (CI on Linux must run under `xvfb-run pnpm test:e2e`).
     headless: false,
+    // Deliberately small viewport so fixture pages scroll: the navigation
+    // specs assert that seeking scrolls the target chunk into view, which is
+    // only observable when content overflows the viewport.
+    viewport: { width: 900, height: 600 },
   },
 });

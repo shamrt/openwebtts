@@ -1,7 +1,7 @@
 import { chromium, type BrowserContext } from "@playwright/test";
 import { test as base, expect } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -91,6 +91,7 @@ function closeServer(server: Server): Promise<void> {
   server.close(() => resolve());
   return promise;
 }
+
 /** Kill a process and any children it spawned (Extension.js forks toolchain workers). */
 function killTree(proc: ChildProcess): void {
   try {

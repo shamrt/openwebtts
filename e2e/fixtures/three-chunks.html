@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Three Chunk Fixture</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 38rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      h2 {
+        line-height: 1.2;
+      }
+      p {
+        line-height: 1.6;
+        margin: 0 0 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Exactly three chunks for ticket 0022: the h1 matches the <title>, so
+      Readability folds it into the article title and the extractor yields
+      [h2 "Part One", p1, p2]. Both paragraphs are long enough that the page
+      scrolls, so "forward scrolls the target chunk into view" is a real,
+      observable motion.
+    -->
+    <article>
+      <h1>Three Chunk Fixture</h1>
+      <h2>Part One</h2>
+      <p>
+        The first paragraph belongs to the opening section. It is deliberately long so the page
+        scrolls: reading aloud turns idle moments into reading time, and a long paragraph gives the
+        reader something to sink into. Sentences follow one another without hurry, each one a small
+        step forward through the argument. The slow web rewards attention, and attention is exactly
+        what spoken text buys back. Keep the eyes on the road, the dishes, or the trail while the
+        words carry on. A paragraph like this one keeps the reader engaged across the fold, so
+        jumping to the next chunk is a real, visible movement on the page. That is the point of this
+        fixture: navigation should move the viewport, not just the state.
+      </p>
+      <p>
+        The second paragraph is the third chunk of three. It lives at the very bottom of the page,
+        far below the fold, so scrolling it into view is an unmistakable, testable action. When the
+        reader presses forward, the overlay seeks to this chunk and the page scrolls so this text is
+        centered on screen. The smart-back behaviour is measured here too: replay the chunk from its
+        top when more than two seconds have elapsed, or step back to the previous chunk when the
+        button is pressed early. Both motions are deterministic in this fixture because the engine
+        is silent — the coordinator clock decides, not the audio pipeline. Three chunks, three
+        states, one clear path through the article.
+      </p>
+    </article>
+  </body>
+</html>

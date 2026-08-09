@@ -22,10 +22,14 @@ export type PositionChangeListener = (position: ReadingPosition) => void;
 export interface PositionStore {
   /** Move to a specific chunk index. */
   seek(chunkIndex: number): void;
+  /** Move to the chunk containing the given percent position (0–100). */
+  seekToPercent(percent: number): void;
   /** Advance one chunk, if possible. */
   next(): void;
   /** Retreat one chunk, if possible. */
   previous(): void;
+  /** Char-weighted percent at the given chunk (0–100, one decimal). */
+  percentAt(chunkIndex: number): number;
   /** Current position snapshot. */
   getPosition(): ReadingPosition;
   /** Subscribe to position changes. Returns disposer. */
@@ -46,6 +50,12 @@ export interface PositionStorage {
 export interface CreatePositionStoreOptions {
   totalChunks: number;
   headingChunks: readonly number[];
+  /**
+   * Per-chunk char lengths (ticket 0022). When omitted, every chunk counts
+   * as one char (uniform weighting). Percent-complete is the share of chars
+   * in chunks completed BEFORE the current chunk.
+   */
+  chunkCharLengths?: readonly number[];
   /** Optional per-URL persistence adapter. */
   storage?: PositionStorage;
   /** URL the position is scoped to. Required when `storage` is given. */
@@ -62,6 +72,24 @@ export function createPositionStore(options: CreatePositionStoreOptions): Positi
   let chunkIndex = 0;
   const listeners = new Set<PositionChangeListener>();
 
+  // Char weights: missing/negative entries default to one char so a partial
+  // or omitted chunkCharLengths still yields a well-formed 0–100 model.
+  const charLengths: number[] = [];
+  let totalChars = 0;
+  for (let i = 0; i < totalChunks; i++) {
+    const raw = options.chunkCharLengths?.[i];
+    const len = typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : 1;
+    charLengths.push(len);
+    totalChars += len;
+  }
+
+  /** Chars in chunks completed before `chunk` (chunks 0..chunk-1). */
+  function completedCharsBefore(chunk: number): number {
+    let sum = 0;
+    for (let i = 0; i < chunk && i < charLengths.length; i++) sum += charLengths[i]!;
+    return sum;
+  }
+
   function headingIndexAt(chunk: number): number | null {
     let found: number | null = null;
     for (let i = headingChunks.length - 1; i >= 0; i--) {
@@ -74,9 +102,23 @@ export function createPositionStore(options: CreatePositionStoreOptions): Positi
   }
 
   function computePercent(chunk: number): number {
-    if (totalChunks === 0) return 0;
+    if (totalChars === 0) return 0;
     const bounded = Math.max(0, Math.min(chunk, totalChunks - 1));
-    return Math.round((bounded / (totalChunks - 1)) * 1000) / 10;
+    return Math.round((completedCharsBefore(bounded) / totalChars) * 1000) / 10;
+  }
+
+  /** Chunk index whose char range contains the given percent position. */
+  function chunkAtPercent(percent: number): number {
+    if (totalChars === 0) return 0;
+    const p = (Math.max(0, Math.min(percent, 100)) / 100) * totalChars;
+    let cum = 0;
+    for (let i = 0; i < charLengths.length; i++) {
+      cum += charLengths[i]!;
+      // Strict: a position exactly at a chunk's start belongs to that chunk,
+      // so seeking to a heading's start-percent lands on the heading chunk.
+      if (cum > p) return i;
+    }
+    return totalChunks - 1;
   }
 
   function currentPosition(): ReadingPosition {
@@ -137,11 +179,17 @@ export function createPositionStore(options: CreatePositionStoreOptions): Positi
 
   return {
     seek,
+    seekToPercent(percent: number): void {
+      seek(chunkAtPercent(percent));
+    },
     next(): void {
       seek(chunkIndex + 1);
     },
     previous(): void {
       seek(chunkIndex - 1);
+    },
+    percentAt(chunk: number): number {
+      return computePercent(chunk);
     },
     getPosition: currentPosition,
     onChange(listener: PositionChangeListener): () => void {

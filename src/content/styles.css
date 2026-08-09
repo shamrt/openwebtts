@@ -256,6 +256,23 @@
   filter: none;
 }
 
+.overlay_btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  filter: none;
+}
+
+.overlay_btn:disabled:hover {
+  background: var(--primary, oklch(0.205 0 0));
+  filter: none;
+}
+
+.overlay_btn--outline:disabled:hover,
+.overlay_btn--ghost:disabled:hover,
+.overlay_btn--icon:disabled:hover {
+  background: transparent;
+}
+
 /* --- Selects --------------------------------------------------------------- */
 
 .overlay_select {

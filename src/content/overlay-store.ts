@@ -29,12 +29,35 @@ import {
 
 export type OverlayState = { status: "idle" } | { status: "playing" } | { status: "paused" };
 
+/**
+ * Ticket 0022 — smart-back threshold: seconds of audio played for the current
+ * chunk above which the back button restarts the chunk instead of seeking to
+ * the previous one. A single named constant in the coordinator.
+ */
+export const BACK_RESTART_THRESHOLD_SECONDS = 2;
+
+/** Nav-state snapshot the UI uses to enable/disable prev/next (ticket 0022). */
+export interface NavState {
+  /** Back enabled: not at the first chunk, or past the restart threshold. */
+  readonly canBack: boolean;
+  /** Forward enabled: not at the last chunk. */
+  readonly canForward: boolean;
+  /** Seconds of audio played for the current chunk. */
+  readonly elapsedInChunk: number;
+}
+
 /** A heading marker for the skip-to-section slider (ticket 0014). */
 export interface HeadingMarker {
   /** 0-based chunk index of the heading chunk. */
   readonly chunkIndex: number;
   /** Heading text to display. */
   readonly text: string;
+  /**
+   * Char-weighted percent of the heading chunk (ticket 0022): the slider
+   * thumb is a continuous 0–100 progress value and markers sit at each
+   * heading's percent position.
+   */
+  readonly percent: number;
 }
 
 export interface OverlayStore {
@@ -53,6 +76,8 @@ export interface OverlayStore {
   readonly currentHeadingIndex: number | null;
   /** Current settings snapshot. */
   readonly settings: ReaderSettings;
+  /** Prev/next enablement + per-chunk elapsed time (ticket 0022). */
+  readonly nav: NavState;
   /** Resolves once the engine controller is hydrated and wired. */
   readonly ready: Promise<void>;
   play(): void;
@@ -62,6 +87,12 @@ export interface OverlayStore {
   close(): void;
   /** Jump to a specific chunk (skip-to-section navigation). */
   seek(chunkIndex: number): void;
+  /** Jump to the chunk containing a 0–100 slider position (ticket 0022). */
+  seekToPercent(percent: number): void;
+  /** Forward: abort the current utterance, move one chunk, autoplay if playing. */
+  nextChunk(): void;
+  /** Smart-back: restart the current chunk past the threshold, else go back one. */
+  backChunk(): void;
   /** Select an engine kind; persisted by the controller. */
   setEngine(kind: ResolvedEngine): Promise<void>;
   setHighlightMode(mode: ReaderSettings["highlightMode"]): void;
@@ -79,6 +110,8 @@ export interface OverlayStore {
   activate(): void;
   /** Subscribe to activation changes. Returns a disposer. */
   onActivatedChange(listener: (activated: boolean) => void): () => void;
+  /** Emits when back/forward enablement or per-chunk elapsed changes. */
+  onNavChange(listener: (nav: NavState) => void): () => void;
   /** DEV test seam: drive the highlighter as a boundary event would. */
   testDriveHighlight(chunkIndex: number, charOffset: number): void;
   /** DEV test seam: clear the active highlight. */
@@ -106,6 +139,9 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   const position = createPositionStore({
     totalChunks: chunks.length,
     headingChunks,
+    // Ticket 0022: percent-complete is char-weighted (Σ completed-chunk chars
+    // / total chars), so the slider thumb advances by chunk length.
+    chunkCharLengths: chunks.map((c) => c.text.length),
     storage: createChromePositionStorage(),
     url: location.href,
   });
@@ -149,6 +185,67 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   const engineListeners = new Set<(kind: ResolvedEngine) => void>();
   const settingsListeners = new Set<(settings: ReaderSettings) => void>();
   const voicesListeners = new Set<(voices: Voice[]) => void>();
+  const navListeners = new Set<(nav: NavState) => void>();
+
+  // --- Ticket 0022: per-chunk elapsed time (smart-back) -----------------------
+  // Lives in the coordinator, not the adapters: a wall-clock ticker started
+  // when an utterance is spoken, reset on pause/stop/seek/chunk change. The
+  // engine surface reports no start/end events, so speak-invocation time is
+  // the timing source — for a 2s threshold the difference is negligible, and
+  // the E2E (which drives silent Piper) depends on this coordinator clock.
+  const ELAPSED_TICK_MS = 250;
+  let elapsedInChunk = 0;
+  // lib.dom's setInterval returns a number in browser contexts.
+  let elapsedTimer: number | null = null;
+  let elapsedStartedAt = 0;
+  let elapsedPastThreshold = false;
+
+  function stopElapsedTimer(): void {
+    if (elapsedTimer !== null) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  }
+
+  /** Reset elapsed to zero and stop the ticker; notifies nav listeners. */
+  function resetElapsed(): void {
+    stopElapsedTimer();
+    elapsedInChunk = 0;
+    elapsedPastThreshold = false;
+    notifyNav();
+  }
+
+  /** Start ticking elapsed for a newly spoken chunk (already playing). */
+  function startElapsedTimer(): void {
+    stopElapsedTimer();
+    elapsedInChunk = 0;
+    elapsedPastThreshold = false;
+    elapsedStartedAt = Date.now();
+    elapsedTimer = setInterval(() => {
+      elapsedInChunk = (Date.now() - elapsedStartedAt) / 1000;
+      // Only the threshold crossing matters for back-button enablement; the
+      // elapsed value itself is read via the `nav` getter.
+      if (!elapsedPastThreshold && elapsedInChunk > BACK_RESTART_THRESHOLD_SECONDS) {
+        elapsedPastThreshold = true;
+        notifyNav();
+      }
+    }, ELAPSED_TICK_MS);
+    notifyNav();
+  }
+
+  function currentNav(): NavState {
+    const chunkIndex = position.getPosition().chunkIndex;
+    return {
+      canBack: chunkIndex > 0 || elapsedInChunk > BACK_RESTART_THRESHOLD_SECONDS,
+      canForward: chunks.length > 0 && chunkIndex < chunks.length - 1,
+      elapsedInChunk,
+    };
+  }
+
+  function notifyNav(): void {
+    const nav = currentNav();
+    for (const listener of navListeners) listener(nav);
+  }
 
   function notifyState(): void {
     for (const listener of stateListeners) listener(state);
@@ -199,6 +296,42 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       voiceUri: settings.voiceUri,
     };
     engine.speak(currentChunk.text, opts);
+    // A freshly spoken chunk starts its elapsed clock (ticket 0022).
+    startElapsedTimer();
+  }
+
+  /** Scroll the given chunk's element into view after a navigation seek. */
+  function scrollChunkIntoView(chunk: ArticleChunk | null): void {
+    if (!chunk) return;
+    try {
+      const element = document.querySelector(chunk.anchor);
+      if (element && typeof element.scrollIntoView === "function") {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    } catch {
+      // Non-CSS anchors (e.g. `pdf:page=2`) — nothing to scroll.
+    }
+  }
+
+  /**
+   * Abort the current utterance and speak the (already-selected) current
+   * chunk from its top. Used by forward/back autoplay (ticket 0022); the
+   * stop runs before the new speak so the old audio never overlaps.
+   */
+  function stopAndSpeakCurrent(): void {
+    void ready.then(() => {
+      if (cleanedUp || state.status !== "playing") return;
+      engine?.stop();
+      speakCurrent();
+    });
+  }
+
+  /** Abort the current utterance without speaking (paused navigation). */
+  function abortCurrent(): void {
+    void ready.then(() => {
+      if (cleanedUp) return;
+      engine?.stop();
+    });
   }
 
   // The settings store fires `onChange` once on the initial load (with the
@@ -223,6 +356,9 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   const positionDisposer = position.onChange(() => {
     positionPercent = position.getPosition().percentComplete;
     updateCurrentChunk();
+    // Chunk change or seek (boundary advance, slider, restore): the elapsed
+    // clock belongs to the chunk that was just spoken — reset it (ticket 0022).
+    resetElapsed();
   });
 
   // Wire the engine once the controller has hydrated its persisted selection.
@@ -257,6 +393,7 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       if (atEnd) {
         state = { status: "idle" };
         highlighter.clear();
+        resetElapsed();
         notifyState();
         return;
       }
@@ -304,10 +441,17 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     get ready() {
       return ready;
     },
+    get nav(): NavState {
+      return currentNav();
+    },
     get headings(): HeadingMarker[] {
       return headingChunks.map((chunkIndex) => {
         const chunk = chunks[chunkIndex]!;
-        return { chunkIndex, text: chunk.headingText ?? chunk.text };
+        return {
+          chunkIndex,
+          text: chunk.headingText ?? chunk.text,
+          percent: position.percentAt(chunkIndex),
+        };
       });
     },
     get currentHeadingIndex(): number | null {
@@ -326,12 +470,14 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       if (state.status !== "playing") return;
       state = { status: "paused" };
       notifyState();
+      resetElapsed();
       void ready.then(() => engine?.pause());
     },
     stop(): void {
       void ready.then(() => engine?.stop());
       highlighter.clear();
       state = { status: "idle" };
+      resetElapsed();
       position.seek(0);
       updateCurrentChunk();
       notifyState();
@@ -343,12 +489,44 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     close(): void {
       void ready.then(() => engine?.stop());
       highlighter.clear();
+      resetElapsed();
       expanded = false;
       notifyExpanded();
       notifyState();
     },
     seek(chunkIndex: number): void {
       position.seek(chunkIndex);
+      scrollChunkIntoView(currentChunk);
+    },
+    seekToPercent(percent: number): void {
+      position.seekToPercent(percent);
+      scrollChunkIntoView(currentChunk);
+    },
+    nextChunk(): void {
+      const current = position.getPosition();
+      if (chunks.length === 0 || current.chunkIndex >= chunks.length - 1) return;
+      const wasPlaying = state.status === "playing";
+      position.seek(current.chunkIndex + 1);
+      scrollChunkIntoView(currentChunk);
+      // Abort the current utterance in both cases; autoplay only if playing.
+      if (wasPlaying) stopAndSpeakCurrent();
+      else abortCurrent();
+    },
+    backChunk(): void {
+      const current = position.getPosition();
+      // Smart-back: past the threshold, restart the current chunk from its
+      // top (chunkIndex unchanged, keeps playing/paused state).
+      if (elapsedInChunk > BACK_RESTART_THRESHOLD_SECONDS) {
+        if (state.status === "playing") stopAndSpeakCurrent();
+        return;
+      }
+      // Within the threshold: disabled at the first chunk.
+      if (current.chunkIndex <= 0) return;
+      const wasPlaying = state.status === "playing";
+      position.seek(current.chunkIndex - 1);
+      scrollChunkIntoView(currentChunk);
+      if (wasPlaying) stopAndSpeakCurrent();
+      else abortCurrent();
     },
     async setEngine(kind: ResolvedEngine): Promise<void> {
       await ready;
@@ -418,6 +596,12 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
         activatedListeners.delete(listener);
       };
     },
+    onNavChange(listener: (nav: NavState) => void): () => void {
+      navListeners.add(listener);
+      return () => {
+        navListeners.delete(listener);
+      };
+    },
     testDriveHighlight(chunkIndex: number, charOffset: number): void {
       position.seek(chunkIndex);
       updateCurrentChunk();
@@ -438,6 +622,7 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     },
     cleanup(): void {
       cleanedUp = true;
+      stopElapsedTimer();
       void ready.then(() => engine?.stop());
       highlighter.clear();
       settingsDisposer();

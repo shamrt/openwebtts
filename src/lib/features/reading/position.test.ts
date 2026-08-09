@@ -47,14 +47,16 @@ describe("createPositionStore", () => {
     expect(store.getPosition().headingIndex).toBe(1);
   });
 
-  it("computes percent-complete rounded to one decimal", () => {
+  it("computes percent-complete rounded to one decimal (uniform default weights)", () => {
+    // Without chunkCharLengths every chunk counts as 1 char; percent is the
+    // share of chars completed BEFORE the current chunk (ticket 0022 model).
     const store = createPositionStore({ totalChunks: 5, headingChunks: [] });
     store.seek(2);
-    expect(store.getPosition().percentComplete).toBe(50);
+    expect(store.getPosition().percentComplete).toBe(40);
     store.next();
-    expect(store.getPosition().percentComplete).toBe(75);
+    expect(store.getPosition().percentComplete).toBe(60);
     store.previous();
-    expect(store.getPosition().percentComplete).toBe(50);
+    expect(store.getPosition().percentComplete).toBe(40);
   });
 
   it("emits change events on position updates", () => {
@@ -122,7 +124,8 @@ describe("createPositionStore", () => {
     expect(second.getPosition().chunkIndex).toBe(4);
     // Restored position carries the correct derived heading index + percent.
     expect(second.getPosition().headingIndex).toBe(1);
-    expect(second.getPosition().percentComplete).toBe(80);
+    // 6 uniform chunks: 4 chars completed before chunk 4 → 4/6.
+    expect(second.getPosition().percentComplete).toBe(66.7);
   });
 
   it("ignores a persisted index that is out of bounds", async () => {
@@ -193,7 +196,7 @@ describe("createPositionStore", () => {
     expect(store.getPosition().chunkIndex).toBe(2);
     // No storage object exists to inspect; the absence of throw + correct
     // derived position is the contract here.
-    expect(store.getPosition().percentComplete).toBeCloseTo(66.7, 1);
+    expect(store.getPosition().percentComplete).toBe(50);
   });
 
   it("does not throw when storage rejects on set (best-effort persist)", () => {
@@ -215,5 +218,118 @@ describe("createPositionStore", () => {
     expect(() => store.seek(1)).not.toThrow();
     expect(() => store.next()).not.toThrow();
     expect(store.getPosition().chunkIndex).toBe(2);
+  });
+});
+
+/**
+ * Ticket 0022 — char-weighted progress model.
+ *
+ * percent-complete is now Σ chars of completed chunks / total chars (chunks
+ * before the current one), replacing the old `chunkIndex / (totalChunks-1)`
+ * model from 0011. Large paragraphs move the thumb further than small ones.
+ */
+describe("createPositionStore char-weighted progress (ticket 0022)", () => {
+  it("weights percent by chunk char length", () => {
+    // Chunk 0 holds 100 of 104 chars → completing it lands at 96.2%.
+    const store = createPositionStore({
+      totalChunks: 5,
+      headingChunks: [],
+      chunkCharLengths: [100, 1, 1, 1, 1],
+    });
+    expect(store.getPosition().percentComplete).toBe(0);
+    store.next();
+    expect(store.getPosition().percentComplete).toBe(96.2);
+    store.next();
+    expect(store.getPosition().percentComplete).toBe(97.1);
+  });
+
+  it("keeps 0% at the first chunk and the whole article at the last", () => {
+    const store = createPositionStore({
+      totalChunks: 3,
+      headingChunks: [],
+      chunkCharLengths: [10, 30, 60],
+    });
+    expect(store.getPosition().percentComplete).toBe(0);
+    store.seek(1);
+    expect(store.getPosition().percentComplete).toBe(10);
+    store.seek(2);
+    expect(store.getPosition().percentComplete).toBe(40);
+  });
+
+  it("defaults missing entries to one char", () => {
+    // chunkCharLengths shorter than totalChunks: missing entries count 1
+    // (total = 5 + 1 + 1 = 7).
+    const store = createPositionStore({
+      totalChunks: 3,
+      headingChunks: [],
+      chunkCharLengths: [5],
+    });
+    store.seek(1);
+    expect(store.getPosition().percentComplete).toBe(71.4); // 5/7
+    store.seek(2);
+    expect(store.getPosition().percentComplete).toBe(85.7); // 6/7
+  });
+
+  it("percentAt reports the char-weighted percent for any chunk", () => {
+    const store = createPositionStore({
+      totalChunks: 4,
+      headingChunks: [],
+      chunkCharLengths: [5, 5, 5, 5],
+    });
+    expect(store.percentAt(0)).toBe(0);
+    expect(store.percentAt(1)).toBe(25);
+    expect(store.percentAt(2)).toBe(50);
+    expect(store.percentAt(3)).toBe(75);
+  });
+
+  it("seekToPercent moves to the chunk containing that percent position", () => {
+    // Chunks of 10 chars in 50 total: chunk 1 spans (20%, 40%], chunk 2 (40%, 60%].
+    const store = createPositionStore({
+      totalChunks: 5,
+      headingChunks: [],
+      chunkCharLengths: [10, 10, 10, 10, 10],
+    });
+    store.seekToPercent(25);
+    expect(store.getPosition().chunkIndex).toBe(1);
+    store.seekToPercent(50);
+    expect(store.getPosition().chunkIndex).toBe(2);
+    store.seekToPercent(0);
+    expect(store.getPosition().chunkIndex).toBe(0);
+    store.seekToPercent(100);
+    expect(store.getPosition().chunkIndex).toBe(4);
+  });
+
+  it("seekToPercent handles a boundary exactly at a chunk start", () => {
+    // Chunk 1 starts exactly at 20% (cum 20/100).
+    const store = createPositionStore({
+      totalChunks: 5,
+      headingChunks: [],
+      chunkCharLengths: [20, 20, 20, 20, 20],
+    });
+    store.seekToPercent(20);
+    expect(store.getPosition().chunkIndex).toBe(1);
+  });
+
+  it("seekToPercent clamps out-of-range percents", () => {
+    const store = createPositionStore({
+      totalChunks: 4,
+      headingChunks: [],
+      chunkCharLengths: [1, 1, 1, 1],
+    });
+    store.seekToPercent(-5);
+    expect(store.getPosition().chunkIndex).toBe(0);
+    store.seekToPercent(999);
+    expect(store.getPosition().chunkIndex).toBe(3);
+  });
+
+  it("stays at 0% with an empty article", () => {
+    const store = createPositionStore({ totalChunks: 0, headingChunks: [] });
+    expect(store.getPosition()).toEqual({
+      chunkIndex: 0,
+      headingIndex: null,
+      percentComplete: 0,
+    });
+    store.seekToPercent(50);
+    expect(store.getPosition().chunkIndex).toBe(0);
   });
 });

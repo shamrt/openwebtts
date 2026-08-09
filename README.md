@@ -1,6 +1,6 @@
 # OpenWebTTS
 
-A free, open-source text-to-speech web reader for Firefox (Android-first) and Chrome. It reads web pages aloud — generic HTML articles, reader-mode pages, and PDFs — with a page-integrated accordion overlay, a skip-to-section slider with heading markers, saved voice/speed settings, and configurable as-you-read highlighting (`off | paragraph | sentence`).
+A free, open-source text-to-speech web reader for Firefox (Android-first) and Chrome. It reads web pages aloud — generic HTML articles, reader-mode pages, and PDFs — with a page-integrated accordion overlay, prev/next chunk navigation with smart-back, a char-weighted skip-to-section slider with heading markers, saved voice/speed settings, and configurable as-you-read highlighting (`off | paragraph | sentence`).
 
 Built from scratch in TypeScript. Logic is ported from [Read Aloud](https://github.com/ken107/read-aloud) (MIT) with attribution — this is **not** a fork.
 

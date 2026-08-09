@@ -57,6 +57,8 @@ export default function initial() {
     positionPercent: writable(overlayStore.positionPercent),
     chunkText: writable(overlayStore.currentChunk?.text ?? ""),
     currentHeadingIndex: writable(overlayStore.currentHeadingIndex),
+    canBack: writable(overlayStore.nav.canBack),
+    canForward: writable(overlayStore.nav.canForward),
     engineKind: writable(overlayStore.engineKind),
     highlightMode: writable(overlayStore.settings.highlightMode),
     rate: writable([overlayStore.settings.rate]),
@@ -83,6 +85,10 @@ export default function initial() {
       ui.voiceUri.set(s.voiceUri);
     }),
     overlayStore.onVoicesChange((v) => ui.voices.set(v)),
+    overlayStore.onNavChange((nav) => {
+      ui.canBack.set(nav.canBack);
+      ui.canForward.set(nav.canForward);
+    }),
   ];
   // DEV-only test seam: E2E tests dispatch CustomEvents on `document` to drive
   // highlight modes and boundary-style highlighting deterministically, without
@@ -162,11 +168,19 @@ export default function initial() {
       chunkText: ui.chunkText,
       headings: overlayStore.headings,
       currentHeadingIndex: ui.currentHeadingIndex,
+      canBack: ui.canBack,
+      canForward: ui.canForward,
       onToggleExpanded() {
         overlayStore.toggleExpanded();
       },
-      onSeek(chunkIndex) {
-        overlayStore.seek(chunkIndex);
+      onSeekPercent(percent) {
+        overlayStore.seekToPercent(percent);
+      },
+      onBack() {
+        overlayStore.backChunk();
+      },
+      onForward() {
+        overlayStore.nextChunk();
       },
       onPlayPause() {
         if (overlayStore.state.status === "playing") {

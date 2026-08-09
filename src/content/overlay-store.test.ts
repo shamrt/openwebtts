@@ -16,7 +16,7 @@ import type {
 } from "$lib/features/tts";
 
 import { createSettingsStore, type StorageArea } from "$lib/features/settings/settings.js";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createOverlayStore } from "./overlay-store.js";
 
@@ -44,10 +44,12 @@ describe("createOverlayStore skip-to-section", () => {
   it("exposes heading markers from the extractor's heading metadata", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const store = createOverlayStore();
+    // Chunk char lengths are [5, 9, 9, 9, 9, 11] (52 total); a marker sits at
+    // the char-weighted percent of its heading chunk (chars before it / total).
     expect(store.headings).toEqual([
-      { chunkIndex: 0, text: "Intro" },
-      { chunkIndex: 2, text: "Section A" },
-      { chunkIndex: 4, text: "Section B" },
+      { chunkIndex: 0, text: "Intro", percent: 0 },
+      { chunkIndex: 2, text: "Section A", percent: 26.9 },
+      { chunkIndex: 4, text: "Section B", percent: 61.5 },
     ]);
     vi.unstubAllGlobals();
   });
@@ -58,8 +60,8 @@ describe("createOverlayStore skip-to-section", () => {
     store.seek(store.headings[1]!.chunkIndex);
     expect(store.currentHeadingIndex).toBe(1);
     expect(store.currentChunk?.headingText).toBe("Section A");
-    // Chunk 2 of 6 → 2/5 = 40%.
-    expect(store.positionPercent).toBe(40);
+    // Chunk 2: chars before it (5 + 9 = 14) of 52 → 26.9%.
+    expect(store.positionPercent).toBe(26.9);
     vi.unstubAllGlobals();
   });
 
@@ -101,7 +103,10 @@ const VOICE_AMY: Voice = { name: "Amy", lang: "en-US", voiceUri: "piper:amy", is
 
 /** A controllable engine-controller fake: per-kind voice catalogs, selection
  * flips `currentEngine` and notifies, and `_emitVoicesChanged` drives the
- * voiceschanged path. Mirrors the real controller's contract (0007). */
+ * voiceschanged path. Mirrors the real controller's contract (0007). Also
+ * records `speak`/`stop`/`pause` calls so ticket 0022 can assert the abort +
+ * autoplay motion of forward/back navigation, and exposes `_emitBoundary` /
+ * `_emitEnd` for the 0013 continuation tests. */
 function fakeEngineController(
   voicesByKind: Record<ResolvedEngine, Voice[]>,
   initial: ResolvedEngine = "web-speech",
@@ -110,6 +115,10 @@ function fakeEngineController(
   _emitBoundary(e: BoundaryEvent): void;
   _emitEnd(): void;
   speaks: string[];
+  _stops: number;
+  _pauses: number;
+  _resumes: number;
+  _reset(): void;
 } {
   let kind: ResolvedEngine = initial;
   const currentCbs = new Set<(e: ResolvedEngine) => void>();
@@ -117,15 +126,31 @@ function fakeEngineController(
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
   const endCbs = new Set<() => void>();
   const speaks: string[] = [];
+  let stops = 0;
+  let pauses = 0;
+  let resumes = 0;
+
+  function resetCalls(): void {
+    speaks.length = 0;
+    stops = 0;
+    pauses = 0;
+    resumes = 0;
+  }
 
   return {
     speaks,
     speak(text: string): void {
       speaks.push(text);
     },
-    stop(): void {},
-    pause(): void {},
-    resume(): void {},
+    stop(): void {
+      stops += 1;
+    },
+    pause(): void {
+      pauses += 1;
+    },
+    resume(): void {
+      resumes += 1;
+    },
     async getVoices(): Promise<Voice[]> {
       return voicesByKind[kind];
     },
@@ -164,6 +189,18 @@ function fakeEngineController(
     },
     _emitEnd(): void {
       for (const cb of endCbs) cb();
+    },
+    get _stops(): number {
+      return stops;
+    },
+    get _pauses(): number {
+      return pauses;
+    },
+    get _resumes(): number {
+      return resumes;
+    },
+    _reset(): void {
+      resetCalls();
     },
   };
 }
@@ -386,5 +423,213 @@ describe("createOverlayStore playback continuation + activation (bugs 1-3)", () 
     expect(seen).toEqual([true]);
     dispose();
     vi.unstubAllGlobals();
+  });
+});
+
+/**
+ * Ticket 0022 — prev/next chunk navigation + smart-back.
+ *
+ * The ARTICLE fixture yields 6 chunks with char lengths [5, 9, 9, 9, 9, 11]
+ * (52 total): "Intro" (0), "Para one." (1), "Section A" (2), "Para two." (3),
+ * "Section B" (4), "Para three." (5). Char-weighted percent at chunk i is the
+ * share of chars in chunks before it.
+ */
+
+/** Flush the promise chains behind `store.ready` / speak scheduling. */
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe("createOverlayStore chunk navigation (ticket 0022)", () => {
+  let cleanupStore: (() => void) | null = null;
+
+  afterEach(() => {
+    cleanupStore?.();
+    cleanupStore = null;
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function makeStore(controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] })) {
+    vi.stubGlobal("document", fixture(ARTICLE));
+    const store = createOverlayStore({ engineController: controller });
+    cleanupStore = store.cleanup;
+    return { store, controller };
+  }
+
+  it("nextChunk and backChunk move the reading position", () => {
+    const { store } = makeStore();
+    store.nextChunk();
+    expect(store.currentChunk?.text).toBe("Para one.");
+    store.nextChunk();
+    expect(store.currentChunk?.text).toBe("Section A");
+    store.backChunk();
+    expect(store.currentChunk?.text).toBe("Para one.");
+  });
+
+  it("forward aborts the current utterance and auto-plays when playing", async () => {
+    const { store, controller } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    controller._reset();
+
+    store.nextChunk();
+    await flushMicrotasks();
+
+    expect(controller._stops).toBe(1);
+    expect(controller.speaks).toEqual(["Para one."]);
+    expect(store.currentChunk?.text).toBe("Para one.");
+    expect(store.state.status).toBe("playing");
+  });
+
+  it("forward while paused moves the position without speaking", async () => {
+    const { store, controller } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    store.pause();
+    await flushMicrotasks();
+    controller._reset();
+
+    store.nextChunk();
+    await flushMicrotasks();
+
+    expect(controller._stops).toBe(1);
+    expect(controller.speaks).toEqual([]);
+    expect(store.currentChunk?.text).toBe("Para one.");
+    expect(store.state.status).toBe("paused");
+  });
+
+  it("forward is a no-op at the last chunk", () => {
+    const { store, controller } = makeStore();
+    store.seek(5);
+    store.nextChunk();
+    expect(controller._stops).toBe(0);
+    expect(store.currentChunk?.text).toBe("Para three.");
+    expect(store.nav.canForward).toBe(false);
+  });
+
+  it("back within the threshold seeks to the previous chunk (abort + autoplay)", async () => {
+    const { store, controller } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    store.nextChunk();
+    await flushMicrotasks();
+    controller._reset();
+
+    // Immediately after playback starts, elapsed is within the 2s threshold.
+    store.backChunk();
+    await flushMicrotasks();
+
+    expect(controller._stops).toBe(1);
+    expect(controller.speaks).toEqual(["Intro"]);
+    expect(store.currentChunk?.text).toBe("Intro");
+    // Back at the first chunk with elapsed reset → disabled again.
+    expect(store.nav.canBack).toBe(false);
+  });
+
+  it("back after the threshold restarts the current chunk from its top", async () => {
+    vi.useFakeTimers();
+    const { store, controller } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    store.nextChunk();
+    await flushMicrotasks();
+    expect(store.currentChunk?.text).toBe("Para one.");
+    controller._reset();
+
+    vi.advanceTimersByTime(2500);
+    expect(store.nav.elapsedInChunk).toBeGreaterThan(2);
+
+    store.backChunk();
+    await flushMicrotasks();
+
+    // Chunk index unchanged: the current chunk is restarted from its top.
+    expect(store.currentChunk?.text).toBe("Para one.");
+    expect(controller._stops).toBe(1);
+    expect(controller.speaks).toEqual(["Para one."]);
+    expect(store.nav.elapsedInChunk).toBe(0);
+  });
+
+  it("back is disabled at the first chunk while within the threshold", async () => {
+    vi.useFakeTimers();
+    const { store } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    expect(store.nav.canBack).toBe(false);
+
+    // Past the threshold, back at the first chunk restarts it instead.
+    vi.advanceTimersByTime(2500);
+    expect(store.nav.canBack).toBe(true);
+    store.backChunk();
+    await flushMicrotasks();
+    expect(store.currentChunk?.text).toBe("Intro");
+    expect(store.nav.elapsedInChunk).toBe(0);
+    expect(store.nav.canBack).toBe(false);
+  });
+
+  it("pause resets elapsed time", async () => {
+    vi.useFakeTimers();
+    const { store } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    vi.advanceTimersByTime(2500);
+    expect(store.nav.elapsedInChunk).toBeGreaterThan(2);
+
+    store.pause();
+    expect(store.nav.elapsedInChunk).toBe(0);
+  });
+
+  it("pause then play re-speaks the current chunk (0013 contract unchanged)", async () => {
+    const { store, controller } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    store.pause();
+    await flushMicrotasks();
+    controller._reset();
+
+    store.play();
+    await flushMicrotasks();
+
+    expect(store.state.status).toBe("playing");
+    expect(controller.speaks).toEqual(["Intro"]);
+  });
+
+  it("emits nav changes to listeners on seek and chunk change", () => {
+    const { store } = makeStore();
+    const seen: Array<{ canBack: boolean; canForward: boolean }> = [];
+    const dispose = store.onNavChange((nav) => seen.push(nav));
+
+    store.seek(5); // last chunk
+    store.seek(0); // back to first
+
+    expect(seen.at(-1)).toEqual(expect.objectContaining({ canBack: false, canForward: true }));
+    dispose();
+  });
+
+  it("reports char-weighted percent through the overlay store", () => {
+    const { store } = makeStore();
+    expect(store.positionPercent).toBe(0);
+    store.seek(2);
+    // Chars before chunk 2 = 5 + 9 = 14 of 52.
+    expect(store.positionPercent).toBe(26.9);
+    // The heading marker for Section A sits at that same percent.
+    expect(store.headings[1]?.percent).toBe(26.9);
+  });
+
+  it("seekToPercent maps a slider position to the chunk at that percent", () => {
+    const { store } = makeStore();
+    // 50% of 52 chars = 26; cumulative ends: 5, 14, 23, 32 → chunk 3.
+    store.seekToPercent(50);
+    expect(store.currentChunk?.text).toBe("Para two.");
+    expect(store.positionPercent).toBe(44.2);
   });
 });
