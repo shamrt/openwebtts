@@ -114,6 +114,8 @@ function captureUnhandled(): { caught: unknown[]; stop: () => void } {
 }
 
 const sent: Sent[] = [];
+/** onMessage listeners registered by `audioChannel.onEnded` (faked bus). */
+const onMessageListeners = new Set<(msg: unknown) => void>();
 let fetchCalls = 0;
 let blobCounter = 0;
 const mockBoundaries: BoundaryEvent[] = [
@@ -154,6 +156,7 @@ function install(opts: { loadRejects?: boolean } = {}): void {
   fetchCalls = 0;
   blobCounter = 0;
   sent.length = 0;
+  onMessageListeners.clear();
 
   const db = new FakeDB();
   g.indexedDB = {
@@ -186,6 +189,14 @@ function install(opts: { loadRejects?: boolean } = {}): void {
         }
         return undefined;
       },
+      onMessage: {
+        addListener(cb: (msg: unknown) => void) {
+          onMessageListeners.add(cb);
+        },
+        removeListener(cb: (msg: unknown) => void) {
+          onMessageListeners.delete(cb);
+        },
+      },
     },
   };
   URL.createObjectURL = ((): string => `blob:fake/${++blobCounter}`) as typeof URL.createObjectURL;
@@ -202,7 +213,13 @@ afterEach(() => {
   if ("createObjectURL" in saved)
     URL.createObjectURL = saved.createObjectURL as typeof URL.createObjectURL;
   sent.length = 0;
+  onMessageListeners.clear();
 });
+
+/** Fires a `tts:audio:ended` message to every registered onMessage listener. */
+function dispatchEnded(): void {
+  for (const cb of onMessageListeners) cb({ type: "tts:audio:ended" });
+}
 
 const OPTS: SpeakOpts = { rate: 1, pitch: 1, volume: 1, voiceUri: "voice:en_US-amy-medium" };
 
@@ -379,5 +396,35 @@ describe("WASM Piper adapter (ticket 0006)", () => {
     // speak kicks off a pipeline that rejects (no IDB) and is swallowed.
     expect(() => engine.speak("hi", OPTS)).not.toThrow();
     expect(() => engine.stop()).not.toThrow();
+  });
+
+  it("onEnd fires after the audio ends", async () => {
+    install();
+    const engine = createPiperEngine({ voices: VOICES });
+
+    const ended: number[] = [];
+    engine.onEnd(() => ended.push(1));
+
+    engine.speak("Hello world", OPTS);
+    await vi.waitFor(() => expect(sent.some((s) => s.type === "tts:audio:play")).toBe(true));
+
+    dispatchEnded();
+    await vi.waitFor(() => expect(ended.length).toBe(1));
+  });
+
+  it("stop() before end suppresses onEnd", async () => {
+    install();
+    const engine = createPiperEngine({ voices: VOICES });
+
+    const ended: number[] = [];
+    engine.onEnd(() => ended.push(1));
+
+    engine.speak("Hello world", OPTS);
+    await vi.waitFor(() => expect(sent.some((s) => s.type === "tts:audio:play")).toBe(true));
+
+    engine.stop(); // bumps currentToken; the pending `ended` is now superseded
+    dispatchEnded();
+    await Promise.resolve();
+    expect(ended).toHaveLength(0);
   });
 });

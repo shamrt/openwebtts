@@ -18,9 +18,12 @@ interface FakeAudio {
   pauseCalls: number;
   play(): Promise<void>;
   pause(): void;
+  addEventListener(type: "ended" | "error", cb: () => void): void;
+  emit(type: "ended" | "error"): void;
 }
 
 function createFakeAudio(): FakeAudio {
+  const handlers = new Map<string, Set<() => void>>();
   return {
     src: "",
     currentTime: 0,
@@ -33,12 +36,25 @@ function createFakeAudio(): FakeAudio {
     pause() {
       this.pauseCalls += 1;
     },
+    addEventListener(type, cb) {
+      let set = handlers.get(type);
+      if (!set) {
+        set = new Set();
+        handlers.set(type, set);
+      }
+      set.add(cb);
+    },
+    emit(type) {
+      for (const cb of handlers.get(type) ?? []) cb();
+    },
   };
 }
 
 let audio: FakeAudio;
 type Listener = (message: unknown) => unknown;
 const listeners = new Set<Listener>();
+/** Messages sent over `chrome.runtime.sendMessage` (the `ended` broadcast). */
+const sent: unknown[] = [];
 let dispose: (() => void) | undefined;
 
 interface SavedGlobals {
@@ -53,7 +69,10 @@ function installGlobals(a: FakeAudio): void {
   saved.document = g.document;
   g.chrome = {
     runtime: {
-      sendMessage: () => Promise.resolve(),
+      sendMessage: (m: unknown) => {
+        sent.push(m);
+        return Promise.resolve();
+      },
       onMessage: {
         addListener(cb: Listener) {
           listeners.add(cb);
@@ -84,6 +103,7 @@ afterEach(() => {
   dispose?.();
   dispose = undefined;
   restoreGlobals();
+  sent.length = 0;
 });
 
 describe("offscreen audio host (ticket 0005)", () => {
@@ -157,5 +177,16 @@ describe("offscreen audio host (ticket 0005)", () => {
     dispatch({ type: "tts:audio:internal:play" });
 
     expect(audio.playCalls).toBe(0);
+  });
+
+  it("audio ended broadcasts a tts:audio:ended message", () => {
+    audio = createFakeAudio();
+    installGlobals(audio);
+    dispose = startOffscreenAudio();
+
+    dispatch({ type: "tts:audio:internal:play" });
+    audio.emit("ended");
+
+    expect(sent).toContainEqual({ type: "tts:audio:ended" });
   });
 });

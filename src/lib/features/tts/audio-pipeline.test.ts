@@ -28,6 +28,7 @@ interface FakeAudio {
   pauseCalls: number;
   play(): Promise<void>;
   pause(): void;
+  addEventListener: () => void;
 }
 
 function createFakeAudio(): FakeAudio {
@@ -43,6 +44,7 @@ function createFakeAudio(): FakeAudio {
     pause() {
       this.pauseCalls += 1;
     },
+    addEventListener: () => {},
   };
 }
 
@@ -233,7 +235,7 @@ describe("audio pipeline end-to-end (ticket 0005)", () => {
     docAlive = true;
 
     // A non-audio message through the same bus must not touch the element.
-    for (const cb of listeners) await cb({ type: "openSidebar" });
+    for (const cb of listeners) await cb({ type: "openwebtts:activate" });
 
     expect(audio.playCalls).toBe(0);
     expect(audio.pauseCalls).toBe(0);

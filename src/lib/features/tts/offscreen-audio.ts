@@ -28,6 +28,7 @@ interface AudioElement {
   currentTime: number;
   play(): Promise<void>;
   pause(): void;
+  addEventListener(type: "ended" | "error", cb: () => void): void;
 }
 
 /** The slice of `document` the host needs to create the element. */
@@ -54,6 +55,15 @@ export function startOffscreenAudio(): () => void {
   if (!doc || !onMessage) return () => {};
 
   const audio = doc.createElement("audio");
+
+  // Broadcast audio completion (and decode/load failures) so a controller can
+  // advance to the next chunk instead of stalling on a one-shot playback.
+  const runtime = getChrome()?.runtime;
+  const broadcastEnded = (): void => {
+    void runtime?.sendMessage?.({ type: "tts:audio:ended" });
+  };
+  audio.addEventListener("ended", broadcastEnded);
+  audio.addEventListener("error", broadcastEnded);
 
   const listener = (message: unknown): void => {
     if (!isOffscreenAudioCommand(message)) return;

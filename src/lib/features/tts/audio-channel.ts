@@ -10,6 +10,10 @@ import { getChrome } from "$lib/shared/chrome-runtime";
  * owns the (minimal, typed) message protocol and sends each command over
  * `chrome.runtime.sendMessage`; the offscreen document owns the element.
  *
+ * The offscreen host broadcasts `tts:audio:ended` when its `<audio>` element
+ * fires `ended`/`error`; {@link audioChannel.onEnded} subscribes to that
+ * inbound signal so a controller can advance to the next chunk.
+ *
  * Node-safe: `getChrome` returns `undefined` without the `chrome` global, in
  * which case every command resolves as a no-op so the module can be imported
  * in the vitest (node) environment without crashing.
@@ -21,6 +25,9 @@ export type AudioChannelMessage =
   | { readonly type: "tts:audio:play" }
   | { readonly type: "tts:audio:pause" }
   | { readonly type: "tts:audio:stop" };
+
+/** Inbound signal that the offscreen `<audio>` element finished (or errored). */
+export type AudioChannelEndedMessage = { readonly type: "tts:audio:ended" };
 
 const AUDIO_MESSAGE_TYPES = new Set<AudioChannelMessage["type"]>([
   "tts:audio:load",
@@ -38,6 +45,12 @@ export function isAudioChannelMessage(message: unknown): message is AudioChannel
     return typeof (message as { src?: unknown }).src === "string";
   }
   return true;
+}
+
+/** Narrows an untyped runtime message to an {@link AudioChannelEndedMessage}. */
+export function isAudioChannelEndedMessage(message: unknown): message is AudioChannelEndedMessage {
+  if (!message || typeof message !== "object") return false;
+  return (message as { type?: unknown }).type === "tts:audio:ended";
 }
 
 async function send(message: AudioChannelMessage): Promise<void> {
@@ -63,5 +76,20 @@ export const audioChannel = {
   /** Stop playback and reset the position to the start. */
   stop(): Promise<void> {
     return send({ type: "tts:audio:stop" });
+  },
+  /**
+   * Subscribe to the offscreen `<audio>` `ended`/`error` broadcast. The
+   * returned disposer removes the listener. No-op (returns a no-op disposer)
+   * when `chrome.runtime.onMessage` is unavailable, so the channel imports
+   * cleanly in node.
+   */
+  onEnded(cb: () => void): () => void {
+    const onMessage = getChrome()?.runtime?.onMessage;
+    if (!onMessage?.addListener) return () => {};
+    const listener = (msg: unknown): void => {
+      if (isAudioChannelEndedMessage(msg)) cb();
+    };
+    onMessage.addListener(listener);
+    return () => onMessage.removeListener(listener);
   },
 };

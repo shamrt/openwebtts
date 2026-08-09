@@ -51,11 +51,14 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
   const voices = options.voices;
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
   const voiceCbs = new Set<(voices: Voice[]) => void>();
+  const endCbs = new Set<() => void>();
 
   // Monotonic utterance token: `stop` bumps it so a superseded synthesis never
   // reaches the audio channel.
   let currentToken = 0;
-
+  // Token of the audio currently playing; the `ended` broadcast is suppressed
+  // unless it matches `currentToken` (a newer `speak` or `stop` supersedes it).
+  let playingToken = 0;
   function mapVoice(m: PiperVoiceModel): Voice {
     return { name: m.name, lang: m.lang, voiceUri: m.voiceUri, isLocal: true };
   }
@@ -128,8 +131,17 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
     const src = audioToSrc(result.audio);
     await audioChannel.load(src);
     if (token !== currentToken) return;
+    playingToken = token;
     await audioChannel.play();
   }
+  // Persistent subscription to the offscreen audio `ended` broadcast. Fires
+  // `onEnd` callbacks only for the audio currently driving playback: a `stop`
+  // or newer `speak` bumps `currentToken` past `playingToken`, suppressing a
+  // late `ended` from superseded audio.
+  audioChannel.onEnded(() => {
+    if (currentToken !== playingToken) return;
+    for (const cb of endCbs) cb();
+  });
 
   return {
     speak(text: string, opts: SpeakOpts): void {
@@ -168,6 +180,13 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
       boundaryCbs.add(cb);
       return () => {
         boundaryCbs.delete(cb);
+      };
+    },
+
+    onEnd(cb: () => void): () => void {
+      endCbs.add(cb);
+      return () => {
+        endCbs.delete(cb);
       };
     },
   };
