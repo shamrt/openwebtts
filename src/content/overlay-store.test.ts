@@ -105,14 +105,24 @@ const VOICE_AMY: Voice = { name: "Amy", lang: "en-US", voiceUri: "piper:amy", is
 function fakeEngineController(
   voicesByKind: Record<ResolvedEngine, Voice[]>,
   initial: ResolvedEngine = "web-speech",
-): EngineController & { _emitVoicesChanged(voices: Voice[]): void } {
+): EngineController & {
+  _emitVoicesChanged(voices: Voice[]): void;
+  _emitBoundary(e: BoundaryEvent): void;
+  _emitEnd(): void;
+  speaks: string[];
+} {
   let kind: ResolvedEngine = initial;
   const currentCbs = new Set<(e: ResolvedEngine) => void>();
   const voiceCbs = new Set<(v: Voice[]) => void>();
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
+  const endCbs = new Set<() => void>();
+  const speaks: string[] = [];
 
   return {
-    speak(): void {},
+    speaks,
+    speak(text: string): void {
+      speaks.push(text);
+    },
     stop(): void {},
     pause(): void {},
     resume(): void {},
@@ -126,6 +136,10 @@ function fakeEngineController(
     onBoundary(cb: (e: BoundaryEvent) => void): () => void {
       boundaryCbs.add(cb);
       return () => boundaryCbs.delete(cb);
+    },
+    onEnd(cb: () => void): () => void {
+      endCbs.add(cb);
+      return () => endCbs.delete(cb);
     },
     getCurrentEngine(): ResolvedEngine {
       return kind;
@@ -144,6 +158,12 @@ function fakeEngineController(
     },
     _emitVoicesChanged(next: Voice[]): void {
       for (const cb of voiceCbs) cb(next);
+    },
+    _emitBoundary(e: BoundaryEvent): void {
+      for (const cb of boundaryCbs) cb(e);
+    },
+    _emitEnd(): void {
+      for (const cb of endCbs) cb();
     },
   };
 }
@@ -279,6 +299,76 @@ describe("createOverlayStore settings (ticket 0015)", () => {
 
     expect(seen).toEqual(["web-speech", "piper"]);
     dispose();
+    vi.unstubAllGlobals();
+  });
+});
+
+/**
+ * Ticket 0013 (bugs 1–3) — boundary vs end semantics + activation gate.
+ *
+ * Web Speech fires a `boundary` event per word; the overlay must NOT advance the
+ * reading position on a boundary (bug 3) — only highlight within the chunk.
+ * Chunk-to-chunk advance happens on `onEnd` (bug 2): speak the next chunk, or
+ * go idle at the end. The overlay is hidden until `activate()` is called (bug 1).
+ */
+describe("createOverlayStore playback continuation + activation (bugs 1-3)", () => {
+  it("boundary does not advance reading position", async () => {
+    vi.stubGlobal("document", fixture(ARTICLE));
+    const controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] });
+    const store = createOverlayStore({ engineController: controller });
+    await store.ready;
+    store.setHighlightMode("paragraph");
+    const before = store.positionPercent;
+    const beforeChunk = store.currentChunk?.text;
+
+    store.play();
+    // Web Speech fires a boundary per word; several in a row must NOT advance.
+    controller._emitBoundary({ charIndex: 0 });
+    controller._emitBoundary({ charIndex: 4 });
+    controller._emitBoundary({ charIndex: 8 });
+
+    expect(store.positionPercent).toBe(before);
+    expect(store.currentChunk?.text).toBe(beforeChunk);
+    vi.unstubAllGlobals();
+  });
+
+  it("onEnd advances to and speaks the next chunk", async () => {
+    vi.stubGlobal("document", fixture(ARTICLE));
+    const controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] });
+    const store = createOverlayStore({ engineController: controller });
+    await store.ready;
+
+    store.play();
+    // Let the play() microtask speak chunk 0 before we end it.
+    await Promise.resolve();
+    const spokeBefore = controller.speaks.length;
+
+    controller._emitEnd();
+
+    expect(store.positionPercent).toBeGreaterThan(0);
+    // speakCurrent was called for the next chunk.
+    expect(controller.speaks.length).toBeGreaterThan(spokeBefore);
+    expect(controller.speaks.at(-1)).toBe(store.currentChunk?.text);
+    vi.unstubAllGlobals();
+  });
+
+  it("onEnd at the last chunk stops playback", async () => {
+    vi.stubGlobal("document", fixture(ARTICLE));
+    const controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] });
+    const store = createOverlayStore({ engineController: controller });
+    await store.ready;
+
+    // ARTICLE yields 6 chunks (0..5); seek to the final chunk.
+    store.seek(5);
+    store.play();
+    await Promise.resolve(); // let speakCurrent run for the last chunk
+    const spokeAtPlay = controller.speaks.length;
+
+    controller._emitEnd();
+
+    expect(store.state.status).toBe("idle");
+    // Stopping at the end does not schedule an extra speak beyond the last.
+    expect(controller.speaks.length).toBe(spokeAtPlay);
     vi.unstubAllGlobals();
   });
 });

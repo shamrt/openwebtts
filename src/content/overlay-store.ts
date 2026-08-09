@@ -127,6 +127,7 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   let positionPercent = position.getPosition().percentComplete;
   const highlighter = createHighlighter(settings.highlightMode);
   let boundaryDisposer: (() => void) | null = null;
+  let endDisposer: (() => void) | null = null;
   let engineDisposer: (() => void) | null = null;
   let voicesDisposer: (() => void) | null = null;
   let cleanedUp = false;
@@ -219,7 +220,10 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     notifyEngineKind();
     boundaryDisposer = controller.onBoundary((e) => {
       if (state.status !== "playing") return;
-      // Highlight the chunk currently being spoken, then advance position.
+      // Boundary fires once per WORD (Web Speech), so it must only advance the
+      // within-chunk highlight — NOT the reading position. Advancing the chunk
+      // on every word boundary was bug 3 (rapid highlight jumps to later
+      // paragraphs). Chunk advance is the onEnd handler's job (bug 2 fix).
       if (currentChunk) {
         if (settings.highlightMode === "paragraph") {
           highlighter.set(toHighlightUnit(currentChunk));
@@ -227,8 +231,23 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
           highlighter.set(toSentenceHighlightUnit(currentChunk, e.charIndex));
         }
       }
+    });
+    // Bug 2 fix: advance to and speak the next chunk when an utterance ends.
+    // The controller relays onEnd only from the engine currently driving
+    // playback, and `end` also fires on cancel — guard on play state so a
+    // stop/cancel end does not spuriously advance or re-speak.
+    endDisposer = controller.onEnd(() => {
+      if (state.status !== "playing") return;
+      const atEnd = position.getPosition().chunkIndex >= chunks.length - 1;
+      if (atEnd) {
+        state = { status: "idle" };
+        highlighter.clear();
+        notifyState();
+        return;
+      }
       position.next();
       updateCurrentChunk();
+      speakCurrent();
     });
     engineDisposer = controller.onCurrentEngine((kind) => {
       engineKind = kind;
@@ -396,6 +415,7 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       settingsDisposer();
       positionDisposer();
       if (boundaryDisposer) boundaryDisposer();
+      if (endDisposer) endDisposer();
       if (engineDisposer) engineDisposer();
       if (voicesDisposer) voicesDisposer();
     },
