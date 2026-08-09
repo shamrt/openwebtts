@@ -1,11 +1,13 @@
 import { chromium, type BrowserContext } from "@playwright/test";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
+
+import { OverlayPage } from "./pages/overlay-page";
 
 /**
  * Ticket 0020 — Playwright E2E harness for the Extension.js build.
@@ -98,14 +100,19 @@ function killTree(proc: ChildProcess): void {
   }
 }
 
-export const test = base.extend<{ serverUrl: string }>({
+export const test = base.extend<{ serverUrl: string; overlayPage: OverlayPage }>({
   // Override the default context with a persistent Chromium context that has
   // the Extension.js build loaded as an unpacked extension.
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures require a destructured first arg; this one has no deps.
   context: async ({}, use) => {
+    // --no-reload strips the content-script hot-reload runtime: with HMR on, a
+    // mid-test re-injection disposes the mounted overlay (rootDiv.remove) and
+    // remounts a fresh, inactive one — the overlay flashes then vanishes, so
+    // post-activate interactions race a disappearing DOM. E2E never edits
+    // source mid-run, so live reload buys nothing here.
     const dev = spawn(
       process.execPath,
-      [EXTENSION_BIN, "dev", "--no-browser", `--browser=${BROWSER}`],
+      [EXTENSION_BIN, "dev", "--no-browser", "--no-reload", `--browser=${BROWSER}`],
       {
         cwd: ROOT,
         stdio: "ignore",
@@ -141,18 +148,14 @@ export const test = base.extend<{ serverUrl: string }>({
     await use(`http://127.0.0.1:${port}`);
     await closeServer(server);
   },
-});
 
-/**
- * Activate the overlay on the page (Slice C). The overlay stays hidden until the
- * extension icon is clicked, which sends "openwebtts:activate" to the content
- * script. E2E drives the same path via the openwebtts:test:activate test seam
- * (dispatched on `document`), then waits for the now-rendered overlay root.
- */
-export async function activate(page: Page): Promise<void> {
-  await page.evaluate(() => document.dispatchEvent(new CustomEvent("openwebtts:test:activate")));
-  await page.locator(".overlay_root").waitFor({ state: "visible" });
-}
+  // Page Object Model for the overlay — wraps fixture navigation, activation,
+  // and the highlight test seams so specs stay declarative. serverUrl is an
+  // internal dependency here; tests destructure only { overlayPage }.
+  overlayPage: async ({ page, serverUrl }, use) => {
+    await use(new OverlayPage(page, serverUrl));
+  },
+});
 
 export { expect };
 export type { BrowserContext };

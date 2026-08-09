@@ -1,4 +1,4 @@
-import { test, expect, activate } from "./fixtures";
+import { test, expect } from "./fixtures";
 
 /**
  * Ticket 0013 — play/pause playback E2E.
@@ -9,26 +9,22 @@ import { test, expect, activate } from "./fixtures";
  * serves fixture pages locally. The collapsed overlay's play/pause button
  * lives in the content-script's open Shadow DOM; `[aria-label]` selectors
  * pierce open shadow boundaries, so they resolve inside the shadow root.
+ * Interaction goes through the `OverlayPage` POM.
  */
-test("the collapsed overlay play/pause button toggles playback state", async ({
-  page,
-  serverUrl,
-}) => {
-  await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
+test("the collapsed overlay play/pause button toggles playback state", async ({ overlayPage }) => {
+  await overlayPage.gotoArticle();
 
   // The overlay is hidden until activated (Slice C); activate before interacting.
-  await activate(page);
+  await overlayPage.activate();
 
   // Collapsed (paused) → the button advertises the "play" action.
-  const play = page.locator('[aria-label="Play"]');
-  await expect(play).toBeVisible();
+  await expect(overlayPage.playButton()).toBeVisible();
 
   // Start playback → the action flips to "pause".
-  await play.click();
-  const pause = page.locator('[aria-label="Pause"]');
-  await expect(pause).toBeVisible();
+  await overlayPage.playButton().click();
+  await expect(overlayPage.pauseButton()).toBeVisible();
 
   // Pause again → the action flips back to "play".
-  await pause.click();
-  await expect(page.locator('[aria-label="Play"]')).toBeVisible();
+  await overlayPage.pauseButton().click();
+  await expect(overlayPage.playButton()).toBeVisible();
 });
