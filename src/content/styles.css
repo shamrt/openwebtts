@@ -1,6 +1,5 @@
 /* Overlay shell styles — injected into the shadow root (the only stylesheet
- * the overlay receives). Plain CSS; Tailwind/shadcn are not used (the
- * content-script build can't compile them).
+ * the overlay receives).
  *
  * Design goals:
  *  - Bottom-anchored, high z-index, above page content.
