@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, activate } from "./fixtures";
 
 /**
  * Ticket 0020 — Playwright E2E harness smoke test.
@@ -20,9 +20,11 @@ test("the accordion overlay appears on a fixture page", async ({ page, serverUrl
   const host = page.locator('[data-extension-root="true"]');
   await expect(host).toBeAttached();
 
+  // The overlay is hidden until the extension icon activates it (Slice C).
+  await activate(page);
+
   // The accordion overlay shell lives inside the host's open Shadow DOM;
   // Playwright's CSS engine pierces open shadow boundaries.
   const overlay = page.locator(".overlay_root");
-  await expect(overlay).toBeVisible();
   await expect(overlay).toContainText("OpenWebTTS");
 });

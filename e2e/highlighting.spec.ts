@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { test, expect } from "./fixtures";
+import { test, expect, activate } from "./fixtures";
 
 /**
  * Ticket 0016 — highlighting E2E (all three modes).
@@ -48,7 +48,7 @@ async function clearHighlight(page: Page) {
 
 test("off mode highlights nothing", async ({ page, serverUrl }) => {
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".overlay_root")).toBeVisible();
+  await activate(page);
 
   await setMode(page, "off");
   await highlight(page, 0, 0);
@@ -58,7 +58,7 @@ test("off mode highlights nothing", async ({ page, serverUrl }) => {
 
 test("paragraph mode highlights the whole chunk", async ({ page, serverUrl }) => {
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".overlay_root")).toBeVisible();
+  await activate(page);
 
   await setMode(page, "paragraph");
   await highlight(page, 0, 0);
@@ -76,7 +76,7 @@ test("sentence mode advances across two sentences within one chunk", async ({
   serverUrl,
 }) => {
   await page.goto(`${serverUrl}/sentences.html`, { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".overlay_root")).toBeVisible();
+  await activate(page);
 
   // The first article paragraph holds two distinct sentences:
   //   0: "The first sentence is short."          (charOffset 0 lives here)

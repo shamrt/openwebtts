@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, activate } from "./fixtures";
 
 /**
  * Ticket 0014 — skip-to-section slider E2E.
@@ -20,9 +20,11 @@ test("dragging to the 2nd heading marker moves reading position to that heading'
 }) => {
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
 
+  // The overlay is hidden until activated (Slice C); activate before interacting.
+  await activate(page);
+
   // Expand the accordion overlay to reveal the navigation section.
   await page.locator(".overlay_handle").click();
-
   const slider = page.locator(".overlay_range--nav");
   await expect(slider).toBeVisible();
 

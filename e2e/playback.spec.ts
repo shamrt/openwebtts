@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, activate } from "./fixtures";
 
 /**
  * Ticket 0013 — play/pause playback E2E.
@@ -16,8 +16,8 @@ test("the collapsed overlay play/pause button toggles playback state", async ({
 }) => {
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
 
-  // Wait for the overlay shell to mount before interacting.
-  await expect(page.locator(".overlay_root")).toBeVisible();
+  // The overlay is hidden until activated (Slice C); activate before interacting.
+  await activate(page);
 
   // Collapsed (paused) → the button advertises the "play" action.
   const play = page.locator('[aria-label="Play"]');

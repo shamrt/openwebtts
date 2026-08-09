@@ -40,6 +40,8 @@ export interface HeadingMarker {
 export interface OverlayStore {
   readonly state: OverlayState;
   readonly expanded: boolean;
+  /** Whether the overlay has been activated (icon-click gate, bug 1). */
+  readonly activated: boolean;
   readonly currentChunk: ArticleChunk | null;
   readonly positionPercent: number;
   readonly engineKind: ResolvedEngine;
@@ -73,6 +75,10 @@ export interface OverlayStore {
   onEngineChange(listener: (kind: ResolvedEngine) => void): () => void;
   onSettingsChange(listener: (settings: ReaderSettings) => void): () => void;
   onVoicesChange(listener: (voices: Voice[]) => void): () => void;
+  /** One-way activation gate (icon click); does not reset on close. */
+  activate(): void;
+  /** Subscribe to activation changes. Returns a disposer. */
+  onActivatedChange(listener: (activated: boolean) => void): () => void;
   /** DEV test seam: drive the highlighter as a boundary event would. */
   testDriveHighlight(chunkIndex: number, charOffset: number): void;
   /** DEV test seam: clear the active highlight. */
@@ -116,6 +122,10 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
 
   let state: OverlayState = { status: "idle" };
   let expanded = false;
+  // One-way activation gate: the overlay stays hidden until the extension icon
+  // is clicked (bug 1). Activation does NOT reset on close — it persists per
+  // page load so a collapsed overlay can re-expand without re-activation.
+  let activated = false;
   let settings = { ...DEFAULT_SETTINGS };
   // True once the highlight mode is set explicitly (UI or test seam). Prevents
   // the async settings-load init from clobbering it with the stored default.
@@ -135,6 +145,7 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   const stateListeners = new Set<(state: OverlayState) => void>();
   const chunkListeners = new Set<(chunk: ArticleChunk | null) => void>();
   const expandedListeners = new Set<(expanded: boolean) => void>();
+  const activatedListeners = new Set<(activated: boolean) => void>();
   const engineListeners = new Set<(kind: ResolvedEngine) => void>();
   const settingsListeners = new Set<(settings: ReaderSettings) => void>();
   const voicesListeners = new Set<(voices: Voice[]) => void>();
@@ -149,6 +160,10 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
 
   function notifyExpanded(): void {
     for (const listener of expandedListeners) listener(expanded);
+  }
+
+  function notifyActivated(): void {
+    for (const listener of activatedListeners) listener(activated);
   }
 
   function notifyEngineKind(): void {
@@ -267,6 +282,9 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     },
     get expanded() {
       return expanded;
+    },
+    get activated() {
+      return activated;
     },
     get settings() {
       return { ...settings };
@@ -388,6 +406,16 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
       voicesListeners.add(listener);
       return () => {
         voicesListeners.delete(listener);
+      };
+    },
+    activate(): void {
+      activated = true;
+      notifyActivated();
+    },
+    onActivatedChange(listener: (activated: boolean) => void): () => void {
+      activatedListeners.add(listener);
+      return () => {
+        activatedListeners.delete(listener);
       };
     },
     testDriveHighlight(chunkIndex: number, charOffset: number): void {

@@ -1,5 +1,7 @@
 import type { HighlightMode } from "$lib/features/settings";
+import type { MessageListener } from "$lib/shared/chrome-runtime";
 
+import { getChrome } from "$lib/shared/chrome-runtime";
 // Extension.js content script entrypoint (TypeScript).
 // - Mounts the Svelte overlay UI into an open Shadow DOM.
 // - Injects the overlay shell CSS (plain CSS, no Tailwind — the content-script
@@ -50,6 +52,7 @@ export default function initial() {
   // overlay, which reads them with `$` and re-renders on change.
   const ui = {
     expanded: writable(overlayStore.expanded),
+    activated: writable(overlayStore.activated),
     playing: writable(overlayStore.state.status === "playing"),
     positionPercent: writable(overlayStore.positionPercent),
     chunkText: writable(overlayStore.currentChunk?.text ?? ""),
@@ -65,6 +68,7 @@ export default function initial() {
   const reactiveDisposers = [
     overlayStore.onStateChange((s) => ui.playing.set(s.status === "playing")),
     overlayStore.onExpandedChange((e) => ui.expanded.set(e)),
+    overlayStore.onActivatedChange((a) => ui.activated.set(a)),
     overlayStore.onChunkChange(() => {
       ui.chunkText.set(overlayStore.currentChunk?.text ?? "");
       ui.positionPercent.set(overlayStore.positionPercent);
@@ -104,15 +108,38 @@ export default function initial() {
     overlayStore.testDriveHighlight(detail.chunkIndex, detail.charOffset ?? 0);
   };
   const onClear = () => overlayStore.testClearHighlight();
+  const onActivate = () => overlayStore.activate();
 
   document.addEventListener("openwebtts:test:set-mode", onSetMode);
   document.addEventListener("openwebtts:test:highlight", onHighlight);
   document.addEventListener("openwebtts:test:clear", onClear);
+  document.addEventListener("openwebtts:test:activate", onActivate);
   testDisposers.push(
     () => document.removeEventListener("openwebtts:test:set-mode", onSetMode),
     () => document.removeEventListener("openwebtts:test:highlight", onHighlight),
     () => document.removeEventListener("openwebtts:test:clear", onClear),
+    () => document.removeEventListener("openwebtts:test:activate", onActivate),
   );
+
+  // Real activation: the background script sends "openwebtts:activate" when the
+  // toolbar icon is clicked (opens the side panel + activates this tab's
+  // overlay). Guarded through getChrome() so the content script imports cleanly
+  // in node (vitest) and Firefox without a `chrome` global.
+  const onMessage = getChrome()?.runtime?.onMessage;
+  let runtimeListener: MessageListener | null = null;
+  if (onMessage?.addListener) {
+    runtimeListener = (message: unknown) => {
+      if (
+        typeof message === "object" &&
+        message !== null &&
+        "type" in message &&
+        message.type === "openwebtts:activate"
+      ) {
+        overlayStore.activate();
+      }
+    };
+    onMessage.addListener(runtimeListener);
+  }
 
   // Mount the Svelte overlay. Reactive state (expanded/playing/position/
   // chunkText/settings/voices) is passed as Svelte writable stores so the
@@ -122,6 +149,7 @@ export default function initial() {
     target: contentDiv,
     props: {
       expanded: ui.expanded,
+      activated: ui.activated,
       playing: ui.playing,
       engineKind: ui.engineKind,
       highlightMode: ui.highlightMode,
@@ -178,6 +206,7 @@ export default function initial() {
     for (const dispose of testDisposers) dispose();
     for (const dispose of reactiveDisposers) dispose();
     testDisposers.length = 0;
+    if (runtimeListener && onMessage?.removeListener) onMessage.removeListener(runtimeListener);
     overlayStore.cleanup();
     rootDiv.remove();
   };

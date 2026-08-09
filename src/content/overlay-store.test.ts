@@ -371,4 +371,20 @@ describe("createOverlayStore playback continuation + activation (bugs 1-3)", () 
     expect(controller.speaks.length).toBe(spokeAtPlay);
     vi.unstubAllGlobals();
   });
+
+  it("activated gates the overlay and activate() enables it", async () => {
+    vi.stubGlobal("document", fixture(ARTICLE));
+    const store = createOverlayStore();
+
+    expect(store.activated).toBe(false);
+    const seen: boolean[] = [];
+    const dispose = store.onActivatedChange((a) => seen.push(a));
+
+    store.activate();
+
+    expect(store.activated).toBe(true);
+    expect(seen).toEqual([true]);
+    dispose();
+    vi.unstubAllGlobals();
+  });
 });

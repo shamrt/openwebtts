@@ -1,5 +1,5 @@
 import { chromium, type BrowserContext } from "@playwright/test";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -142,6 +142,17 @@ export const test = base.extend<{ serverUrl: string }>({
     await closeServer(server);
   },
 });
+
+/**
+ * Activate the overlay on the page (Slice C). The overlay stays hidden until the
+ * extension icon is clicked, which sends "openwebtts:activate" to the content
+ * script. E2E drives the same path via the openwebtts:test:activate test seam
+ * (dispatched on `document`), then waits for the now-rendered overlay root.
+ */
+export async function activate(page: Page): Promise<void> {
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("openwebtts:test:activate")));
+  await page.locator(".overlay_root").waitFor({ state: "visible" });
+}
 
 export { expect };
 export type { BrowserContext };

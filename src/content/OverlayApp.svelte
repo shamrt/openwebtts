@@ -6,6 +6,7 @@
   import type { HeadingMarker } from "./overlay-store.js";
 
   let {
+    activated,
     expanded,
     playing,
     engineKind = writable("web-speech"),
@@ -32,6 +33,7 @@
     onClose,
   }: {
     expanded: Writable<boolean>;
+    activated: Writable<boolean>;
     playing: Writable<boolean>;
     engineKind: Writable<ResolvedEngine>;
     highlightMode: Writable<HighlightMode>;
@@ -69,6 +71,7 @@
   ];
 </script>
 
+{#if $activated}
 <div class="overlay_root" class:overlay_root--expanded={$expanded}>
   <div
     class="overlay_handle"
@@ -248,3 +251,4 @@
     </div>
   {/if}
 </div>
+{/if}
