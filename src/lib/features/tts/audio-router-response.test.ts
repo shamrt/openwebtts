@@ -31,7 +31,7 @@ interface FakeAudio {
   src: string;
   currentTime: number;
   play(): Promise<void>;
-  pause(): void;
+  addEventListener(type: string, cb: () => void): void;
 }
 
 function createFakeAudio(): FakeAudio {
@@ -39,7 +39,7 @@ function createFakeAudio(): FakeAudio {
     src: "",
     currentTime: 0,
     play: () => Promise.resolve(),
-    pause: () => {},
+    addEventListener: () => {},
   };
 }
 
