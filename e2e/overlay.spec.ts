@@ -13,18 +13,24 @@ import { test, expect, activate } from "./fixtures";
  *
  * This is the harness every E2E-bearing ticket ([[0013]], [[0016]]) builds on.
  */
-test("the accordion overlay appears on a fixture page", async ({ page, serverUrl }) => {
+test("the overlay is hidden until the extension icon activates it", async ({ page, serverUrl }) => {
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
 
   // The content script appends a host element isolated from page styles.
   const host = page.locator('[data-extension-root="true"]');
   await expect(host).toBeAttached();
 
-  // The overlay is hidden until the extension icon activates it (Slice C).
+  // Bug 1 gate: until the extension icon is clicked, the overlay renders
+  // nothing — the Shadow DOM host exists but `.overlay_root` is absent.
+  await expect(page.locator(".overlay_root")).toHaveCount(0);
+
+  // Activating (icon click → openwebtts:activate; E2E drives the same path
+  // via the openwebtts:test:activate seam) renders the accordion shell.
   await activate(page);
 
   // The accordion overlay shell lives inside the host's open Shadow DOM;
   // Playwright's CSS engine pierces open shadow boundaries.
   const overlay = page.locator(".overlay_root");
+  await expect(overlay).toBeVisible();
   await expect(overlay).toContainText("OpenWebTTS");
 });
