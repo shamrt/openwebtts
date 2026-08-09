@@ -60,8 +60,9 @@ A single `src/manifest.json` drives every target. Browser-specific fields use Ex
 
 Manifest notes:
 
-- Chrome (MV3) declares `sidePanel` + `offscreen` permissions and `<all_urls>` host permissions; the offscreen document hosts the WASM Piper audio pipeline (Firefox has no `chrome.offscreen` — its event-page background already has DOM access, so the permission is Chromium-only).
-- Firefox (MV2) declares `<all_urls>` permissions and a `browser_specific_settings.gecko_android.strict_min_version` (`120.0`) so AMO lists the add-on for Firefox for Android as well as desktop. `gecko.id` is `@openwebtts`.
+- Chrome (MV3) declares `offscreen` + `storage` permissions and `<all_urls>` host permissions; the offscreen document hosts the WASM Piper audio pipeline. Firefox has no `chrome.offscreen` — its event-page background already has DOM access — so `offscreen` is Chromium-only.
+- Firefox (MV3) declares `tabs`, `<all_urls>`, `storage` permissions and a `browser_specific_settings.gecko_android.strict_min_version` (`120.0`) so AMO lists the add-on for Firefox for Android as well as desktop. `gecko.id` is `@openwebtts`.
+- The toolbar icon activates the in-page overlay (the sole UI surface) on both targets: `action.onClicked` → `tabs.sendMessage({ type: "openwebtts:activate" })` → the content script renders the overlay. There is no side panel or sidebar.
 
 ### Firefox for Android dev loop
 

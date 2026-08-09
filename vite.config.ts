@@ -180,12 +180,7 @@ export default defineConfig({
     },
     settings: {
       "boundaries/include": ["src/**/*.ts"],
-      "boundaries/ignore": [
-        "src/background.ts",
-        "src/content/**",
-        "src/offscreen/**",
-        "src/sidebar/**",
-      ],
+      "boundaries/ignore": ["src/background.ts", "src/content/**", "src/offscreen/**"],
       "boundaries/elements": [
         {
           type: "feature",

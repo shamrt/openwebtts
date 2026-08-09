@@ -17,7 +17,7 @@ which run against saved HTML snapshots.
 
 1. Open one of the verification URLs below in Chrome (a fresh profile avoids
    signed-in personalization).
-2. Trigger the OpenWebTTS extension (open the sidebar / overlay).
+2. Trigger the OpenWebTTS extension (click the toolbar icon to open the overlay).
 3. Inspect the extracted chunks shown in the overlay:
    - Chunks should come from the article body (reader-mode / AMP container).
    - Chunk text must **not** include "Subscribe to continue", "Sign in",
