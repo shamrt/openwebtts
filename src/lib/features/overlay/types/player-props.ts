@@ -7,8 +7,8 @@ import type { HeadingMarker } from "../store.js";
  * Props shared by the presentational player components.
  *
  * Single source of truth for the overlay UI contract: Player consumes the
- * full shape, PlayerHost mirrors it with state wrapped in Svelte writable
- * stores, and the region components (Expanded/Collapsed) take subsets.
+ * full shape, PlayerContainer forwards it from the overlay store, and the
+ * region components (Expanded/Collapsed) take subsets.
  * Single-consumer variants are colocated with their components.
  */
 export interface PlayerProps {

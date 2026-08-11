@@ -2,16 +2,16 @@ import type { HighlightMode } from "$lib/features/settings";
 import type { MessageListener } from "$lib/shared/chrome-runtime";
 
 import { createStore } from "$lib/features/overlay";
-import PlayerHost from "$lib/features/overlay/components/PlayerHost.svelte";
+import PlayerContainer from "$lib/features/overlay/components/PlayerContainer.svelte";
 import { getRuntime } from "$lib/shared/chrome-runtime";
 // Extension.js content script entrypoint (TypeScript).
 // - Mounts the Svelte overlay UI into an open Shadow DOM. Component styles are
 //   scoped and injected into the shadow root by Svelte at mount time.
-// - Bridges the plain-TS overlay store to Svelte reactivity via writable stores.
+// - Hands the overlay store to the PlayerContainer, which bridges its event
+//   API to runes ($state) and renders the presentational Player.
 // - Exposes a CustomEvent test seam for E2E highlighting tests.
 // Docs: https://extension.js.org/docs/content-scripts
 import { mount } from "svelte";
-import { writable } from "svelte/store";
 
 console.log("[OpenWebTTS] content script ready");
 
@@ -37,50 +37,9 @@ export default function initial() {
 
   const overlayStore = createStore();
 
-  // Bridge the plain-TS overlay store to Svelte reactivity. The store is a
-  // plain module (Svelte runes can't live in a .ts compiled by svelte-loader),
-  // so its observable state is mirrored into writable stores and passed to the
-  // overlay, which reads them with `$` and re-renders on change.
-  const ui = {
-    expanded: writable(overlayStore.expanded),
-    activated: writable(overlayStore.activated),
-    playing: writable(overlayStore.state.status === "playing"),
-    positionPercent: writable(overlayStore.positionPercent),
-    chunkText: writable(overlayStore.currentChunk?.text ?? ""),
-    currentHeadingIndex: writable(overlayStore.currentHeadingIndex),
-    canBack: writable(overlayStore.nav.canBack),
-    canForward: writable(overlayStore.nav.canForward),
-    engineKind: writable(overlayStore.engineKind),
-    highlightMode: writable(overlayStore.settings.highlightMode),
-    rate: writable(overlayStore.settings.rate),
-    volume: writable(overlayStore.settings.volume),
-    pitch: writable(overlayStore.settings.pitch),
-    voiceUri: writable(overlayStore.settings.voiceUri),
-    voices: writable(overlayStore.voices),
-  };
-  const reactiveDisposers = [
-    overlayStore.onStateChange((s) => ui.playing.set(s.status === "playing")),
-    overlayStore.onExpandedChange((e) => ui.expanded.set(e)),
-    overlayStore.onActivatedChange((a) => ui.activated.set(a)),
-    overlayStore.onChunkChange(() => {
-      ui.chunkText.set(overlayStore.currentChunk?.text ?? "");
-      ui.positionPercent.set(overlayStore.positionPercent);
-      ui.currentHeadingIndex.set(overlayStore.currentHeadingIndex);
-    }),
-    overlayStore.onEngineChange((k) => ui.engineKind.set(k)),
-    overlayStore.onSettingsChange((s) => {
-      ui.highlightMode.set(s.highlightMode);
-      ui.rate.set(s.rate);
-      ui.volume.set(s.volume);
-      ui.pitch.set(s.pitch);
-      ui.voiceUri.set(s.voiceUri);
-    }),
-    overlayStore.onVoicesChange((v) => ui.voices.set(v)),
-    overlayStore.onNavChange((nav) => {
-      ui.canBack.set(nav.canBack);
-      ui.canForward.set(nav.canForward);
-    }),
-  ];
+  // PlayerContainer owns the store→Svelte bridge: it mirrors the store's
+  // observables into `$state` and delegates callbacks to its methods — no
+  // writable-store mirroring or subscription wiring lives in the entrypoint.
   // Test seam: E2E tests dispatch CustomEvents on `document` to drive
   // highlight modes and boundary-style highlighting deterministically, without
   // relying on real speechSynthesis. Listeners cross the isolated-world
@@ -138,80 +97,16 @@ export default function initial() {
     onMessage.addListener(runtimeListener);
   }
 
-  // Mount the Svelte overlay. Reactive state (expanded/playing/position/
-  // chunkText/settings/voices) is passed as Svelte writable stores; the
-  // PlayerHost bridge unwraps them into plain props for the
-  // presentational Player, which re-renders on store changes —
-  // including the async settings load and engine resolution. The mount
-  // result is unused.
-  const _player = mount(PlayerHost, {
+  // Mount the Svelte overlay. PlayerContainer mirrors the store's observables
+  // into runes state and renders the presentational Player — including the
+  // async settings load and engine resolution. The mount result is unused.
+  const _player = mount(PlayerContainer, {
     target: shadowRoot,
-    props: {
-      expanded: ui.expanded,
-      activated: ui.activated,
-      playing: ui.playing,
-      engineKind: ui.engineKind,
-      highlightMode: ui.highlightMode,
-      rate: ui.rate,
-      volume: ui.volume,
-      pitch: ui.pitch,
-      voices: ui.voices,
-      voiceUri: ui.voiceUri,
-      positionPercent: ui.positionPercent,
-      chunkText: ui.chunkText,
-      headings: overlayStore.headings,
-      currentHeadingIndex: ui.currentHeadingIndex,
-      canBack: ui.canBack,
-      canForward: ui.canForward,
-      onToggleExpanded() {
-        overlayStore.toggleExpanded();
-      },
-      onSeekPercent(percent) {
-        overlayStore.seekToPercent(percent);
-      },
-      onBack() {
-        overlayStore.backChunk();
-      },
-      onForward() {
-        overlayStore.nextChunk();
-      },
-      onPlayPause() {
-        if (overlayStore.state.status === "playing") {
-          overlayStore.pause();
-        } else {
-          overlayStore.play();
-        }
-      },
-      onStop() {
-        overlayStore.stop();
-      },
-      onEngineChange(kind) {
-        void overlayStore.setEngine(kind);
-      },
-      onHighlightModeChange(mode) {
-        overlayStore.setHighlightMode(mode);
-      },
-      onRateChange(rate) {
-        void overlayStore.setRate(rate);
-      },
-      onVolumeChange(volume) {
-        void overlayStore.setVolume(volume);
-      },
-      onPitchChange(pitch) {
-        void overlayStore.setPitch(pitch);
-      },
-      onVoiceChange(voiceUri) {
-        void overlayStore.setVoice(voiceUri);
-      },
-      onClose() {
-        overlayStore.close();
-      },
-    },
+    props: { store: overlayStore },
   });
 
   return () => {
     for (const dispose of testDisposers) dispose();
-    for (const dispose of reactiveDisposers) dispose();
     testDisposers.length = 0;
     if (runtimeListener && onMessage?.removeListener) onMessage.removeListener(runtimeListener);
     overlayStore.cleanup();
