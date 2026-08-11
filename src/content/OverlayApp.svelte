@@ -3,6 +3,7 @@
   import type { HighlightMode } from "$lib/features/settings/settings.js";
 
   import type { HeadingMarker } from "./overlay-store.js";
+  import { formatPercent } from "./overlay-format.js";
 
   let {
     activated,
@@ -95,7 +96,7 @@
     >
       <span class="overlay_title">OpenWebTTS</span>
       <span class="overlay_handle_group">
-        <span class="overlay_percent">{positionPercent.toFixed(1)}%</span>
+        <span class="overlay_percent">{formatPercent(positionPercent)}</span>
         <span
           class="overlay_chevron"
           class:overlay_chevron--expanded={expanded}
