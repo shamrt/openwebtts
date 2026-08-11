@@ -7,7 +7,7 @@ import { getRuntime } from "$lib/shared/chrome-runtime";
 // - Injects the overlay shell CSS (plain CSS, no Tailwind — the content-script
 //   build does not run @tailwindcss/vite) at build time via a `?inline` import.
 // - Bridges the plain-TS overlay store to Svelte reactivity via writable stores.
-// - Exposes a DEV-gated CustomEvent test seam for E2E highlighting tests.
+// - Exposes a CustomEvent test seam for E2E highlighting tests.
 // Docs: https://extension.js.org/docs/content-scripts
 import { mount } from "svelte";
 import { writable } from "svelte/store";
@@ -90,7 +90,7 @@ export default function initial() {
       ui.canForward.set(nav.canForward);
     }),
   ];
-  // DEV-only test seam: E2E tests dispatch CustomEvents on `document` to drive
+  // Test seam: E2E tests dispatch CustomEvents on `document` to drive
   // highlight modes and boundary-style highlighting deterministically, without
   // relying on real speechSynthesis. Listeners cross the isolated-world
   // boundary via CustomEvent.detail (a plain object).
