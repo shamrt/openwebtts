@@ -4,6 +4,7 @@
 
   import type { Voice } from "$lib/features/tts";
   import type { HeadingMarker } from "./overlay-store.js";
+  import { formatPercent } from "./overlay-format.js";
   import OverlayApp from "./OverlayApp.svelte";
   import "./styles.css";
 
@@ -60,6 +61,13 @@
     positionPercent: 12.3,
     chunkText: "A short snippet.",
   }}
+  play={async ({ canvasElement }) => {
+    const chevron = canvasElement.querySelector(".overlay_chevron");
+    await expect(chevron).not.toBeNull();
+    await expect(
+      chevron?.classList.contains("overlay_chevron--expanded"),
+    ).toBe(false);
+  }}
 />
 
 <Story
@@ -72,6 +80,10 @@
     rate: 1.5,
     pitch: 0.8,
     volume: 0.6,
+  }}
+  play={async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText(formatPercent(42.7))).toHaveLength(1);
   }}
 />
 
@@ -108,6 +120,12 @@
       canvas.getByRole("button", { name: "Toggle OpenWebTTS overlay" }),
     );
     await expect(args.onToggleExpanded).toHaveBeenCalledTimes(1);
+
+    const chevron = canvasElement.querySelector(".overlay_chevron");
+    await expect(chevron).not.toBeNull();
+    await expect(
+      chevron?.classList.contains("overlay_chevron--expanded"),
+    ).toBe(true);
 
     // Play/pause fires the callback (playing: true → "Pause").
     await userEvent.click(canvas.getByRole("button", { name: "Pause" }));
