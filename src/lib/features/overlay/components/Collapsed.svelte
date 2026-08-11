@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { PlayerProps } from "../types/player-props.js";
+
   import Button from "./Button.svelte";
 
   let {
@@ -10,16 +12,17 @@
     onBack,
     onForward,
     onStop,
-  }: {
-    playing: boolean;
-    canBack: boolean;
-    canForward: boolean;
-    chunkText: string;
-    onPlayPause: () => void;
-    onBack: () => void;
-    onForward: () => void;
-    onStop: () => void;
-  } = $props();
+  }: Pick<
+    PlayerProps,
+    | "playing"
+    | "canBack"
+    | "canForward"
+    | "chunkText"
+    | "onPlayPause"
+    | "onBack"
+    | "onForward"
+    | "onStop"
+  > = $props();
 </script>
 
 <div class="collapsed">

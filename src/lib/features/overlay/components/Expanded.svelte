@@ -1,7 +1,5 @@
 <script lang="ts">
-  import type { ResolvedEngine, Voice } from "$lib/features/tts";
-  import type { HighlightMode } from "$lib/features/settings";
-  import type { HeadingMarker } from "../store.js";
+  import type { PlayerProps } from "../types/player-props.js";
 
   import Button from "./Button.svelte";
 
@@ -32,34 +30,7 @@
     onVolumeChange,
     onPitchChange,
     onVoiceChange,
-  }: {
-    playing: boolean;
-    canBack: boolean;
-    canForward: boolean;
-    chunkText: string;
-    positionPercent: number;
-    headings: HeadingMarker[];
-    currentHeadingIndex: number | null;
-    engineKind: ResolvedEngine;
-    highlightMode: HighlightMode;
-    rate: number;
-    volume: number;
-    pitch: number;
-    voices: Voice[];
-    voiceUri: string;
-    onPlayPause: () => void;
-    onBack: () => void;
-    onForward: () => void;
-    onStop: () => void;
-    onClose: () => void;
-    onSeekPercent: (percent: number) => void;
-    onEngineChange: (kind: ResolvedEngine) => void;
-    onHighlightModeChange: (mode: HighlightMode) => void;
-    onRateChange: (value: number) => void;
-    onVolumeChange: (value: number) => void;
-    onPitchChange: (value: number) => void;
-    onVoiceChange: (voiceUri: string) => void;
-  } = $props();
+  }: Omit<PlayerProps, "activated" | "expanded" | "onToggleExpanded"> = $props();
 
   const engineOptions: { value: ResolvedEngine; label: string }[] = [
     { value: "web-speech", label: "Web Speech" },

@@ -1,15 +1,21 @@
 <script lang="ts">
-  import type { ResolvedEngine, Voice } from "$lib/features/tts";
-  import type { HighlightMode } from "$lib/features/settings";
   import type { Writable } from "svelte/store";
 
-  import type { HeadingMarker } from "../store.js";
+  import type { PlayerProps } from "../types/player-props.js";
   import Player from "./Player.svelte";
 
   // Thin bridge between the content-script's writable stores (plain TS, no
   // runes) and the presentational Player, which takes plain values and
   // reports every mutation through callbacks. `$store` auto-subscription keeps
   // the overlay re-rendering on store changes.
+  //
+  // State props arrive as Svelte writable stores; callbacks stay plain
+  // functions. `headings` is the one state prop passed through unwrapped.
+  type PlayerHostProps = {
+    [K in keyof PlayerProps]: K extends `on${string}` | "headings"
+      ? PlayerProps[K]
+      : Writable<PlayerProps[K]>;
+  };
   let {
     activated,
     expanded,
@@ -40,37 +46,7 @@
     onPitchChange,
     onVoiceChange,
     onClose,
-  }: {
-    expanded: Writable<boolean>;
-    activated: Writable<boolean>;
-    playing: Writable<boolean>;
-    engineKind: Writable<ResolvedEngine>;
-    highlightMode: Writable<HighlightMode>;
-    rate: Writable<number>;
-    volume: Writable<number>;
-    pitch: Writable<number>;
-    voices: Writable<Voice[]>;
-    voiceUri: Writable<string>;
-    positionPercent: Writable<number>;
-    chunkText: Writable<string>;
-    headings: HeadingMarker[];
-    currentHeadingIndex: Writable<number | null>;
-    canBack: Writable<boolean>;
-    canForward: Writable<boolean>;
-    onPlayPause: () => void;
-    onToggleExpanded: () => void;
-    onStop: () => void;
-    onSeekPercent: (percent: number) => void;
-    onBack: () => void;
-    onForward: () => void;
-    onEngineChange: (kind: ResolvedEngine) => void;
-    onHighlightModeChange: (mode: HighlightMode) => void;
-    onRateChange: (value: number) => void;
-    onVolumeChange: (value: number) => void;
-    onPitchChange: (value: number) => void;
-    onVoiceChange: (voiceUri: string) => void;
-    onClose: () => void;
-  } = $props();
+  }: PlayerHostProps = $props();
 </script>
 
 <Player
