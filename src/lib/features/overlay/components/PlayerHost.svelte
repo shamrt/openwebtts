@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { ResolvedEngine, Voice } from "$lib/features/tts";
-  import type { HighlightMode } from "$lib/features/settings/settings.js";
+  import type { HighlightMode } from "$lib/features/settings";
   import type { Writable } from "svelte/store";
 
-  import type { HeadingMarker } from "./overlay-store.js";
-  import OverlayPlayer from "./OverlayPlayer.svelte";
+  import type { HeadingMarker } from "../store.js";
+  import Player from "./Player.svelte";
 
   // Thin bridge between the content-script's writable stores (plain TS, no
-  // runes) and the presentational OverlayPlayer, which takes plain values and
+  // runes) and the presentational Player, which takes plain values and
   // reports every mutation through callbacks. `$store` auto-subscription keeps
   // the overlay re-rendering on store changes.
   let {
@@ -73,7 +73,7 @@
   } = $props();
 </script>
 
-<OverlayPlayer
+<Player
   activated={$activated}
   expanded={$expanded}
   playing={$playing}

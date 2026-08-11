@@ -6,9 +6,9 @@
  * (`e2e/navigation.spec.ts`) covers the rendered slider itself.
  */
 
-import type { Highlighter, HighlightUnit } from "$lib/features/reading/highlighter.js";
-import type { ReaderSettings } from "$lib/features/settings/settings.js";
-import type { HighlightMode } from "$lib/features/settings/settings.js";
+import type { Highlighter, HighlightUnit } from "$lib/features/reading";
+import type { ReaderSettings } from "$lib/features/settings";
+import type { HighlightMode } from "$lib/features/settings";
 import type {
   BoundaryEvent,
   EngineController,
@@ -17,11 +17,11 @@ import type {
   Voice,
 } from "$lib/features/tts";
 
-import { toHighlightUnit } from "$lib/features/reading/highlighter.js";
-import { createSettingsStore, type StorageArea } from "$lib/features/settings/settings.js";
+import { toHighlightUnit } from "$lib/features/reading";
+import { createSettingsStore, type StorageArea } from "$lib/features/settings";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { createOverlayStore } from "./overlay-store.js";
+import { createStore } from "./store.js";
 
 function fixture(html: string): Document {
   const doc = document.implementation.createHTMLDocument("Fixture");
@@ -43,10 +43,10 @@ const ARTICLE = `
   </article>
 `;
 
-describe("createOverlayStore skip-to-section", () => {
+describe("createStore skip-to-section", () => {
   it("exposes heading markers from the extractor's heading metadata", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
-    const store = createOverlayStore();
+    const store = createStore();
     // Chunk char lengths are [5, 9, 9, 9, 9, 11] (52 total); a marker sits at
     // the char-weighted percent of its heading chunk (chars before it / total).
     expect(store.headings).toEqual([
@@ -59,7 +59,7 @@ describe("createOverlayStore skip-to-section", () => {
 
   it("seek moves the reading position to the heading's chunk", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
-    const store = createOverlayStore();
+    const store = createStore();
     store.seek(store.headings[1]!.chunkIndex);
     expect(store.currentHeadingIndex).toBe(1);
     expect(store.currentChunk?.headingText).toBe("Section A");
@@ -70,7 +70,7 @@ describe("createOverlayStore skip-to-section", () => {
 
   it("reports the current heading for the active section", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
-    const store = createOverlayStore();
+    const store = createStore();
     expect(store.currentHeadingIndex).toBe(0); // Intro
     store.seek(3); // paragraph inside Section A (2nd heading)
     expect(store.currentHeadingIndex).toBe(1);
@@ -84,7 +84,7 @@ describe("createOverlayStore skip-to-section", () => {
       "document",
       fixture("<article><p>Only paragraphs.</p><p>More text.</p></article>"),
     );
-    const store = createOverlayStore();
+    const store = createStore();
     expect(store.headings).toEqual([]);
     expect(store.currentHeadingIndex).toBeNull();
     vi.unstubAllGlobals();
@@ -96,7 +96,7 @@ describe("createOverlayStore skip-to-section", () => {
  *
  * The settings panel (voice list, speed/pitch/volume, highlighting
  * granularity) reads voices from the active engine and persists every field
- * through the settings store. These tests cover the overlay-store seam: voice
+ * through the settings store. These tests cover the store seam: voice
  * listing from the resolved engine, voice/pitch persistence round-trips, and
  * the settings/engine/voice change events the UI bridges to Svelte stores.
  */
@@ -134,7 +134,7 @@ function fakeEngineController(
   let pauses = 0;
   let resumes = 0;
   // Tracks the "is the synth paused with a live utterance" state the
-  // overlay-store's play() branches on (bug 1). pause() sets it; a fresh
+  // store's play() branches on (bug 1). pause() sets it; a fresh
   // speak/stop/resume clears it. `_setPaused` simulates the synth auto-stopping
   // (no live utterance) so the replay fallback can be exercised.
   let paused = false;
@@ -269,14 +269,14 @@ function createMemoryStorage(): StorageArea {
   };
 }
 
-describe("createOverlayStore settings (ticket 0015)", () => {
+describe("createStore settings (ticket 0015)", () => {
   it("lists voices from the active engine", async () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const controller = fakeEngineController(
       { "web-speech": [VOICE_ALEX], piper: [VOICE_AMY] },
       "web-speech",
     );
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     await store.ready;
 
     expect(store.voices).toEqual([VOICE_ALEX]);
@@ -289,7 +289,7 @@ describe("createOverlayStore settings (ticket 0015)", () => {
       { "web-speech": [VOICE_ALEX], piper: [VOICE_AMY] },
       "web-speech",
     );
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     await store.ready;
     expect(store.voices.map((v) => v.voiceUri)).toEqual(["ws:alex"]);
 
@@ -303,7 +303,7 @@ describe("createOverlayStore settings (ticket 0015)", () => {
   it("updates voices when the active engine emits voiceschanged", async () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const controller = fakeEngineController({ "web-speech": [], piper: [] }, "web-speech");
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     await store.ready;
     expect(store.voices).toEqual([]);
 
@@ -317,7 +317,7 @@ describe("createOverlayStore settings (ticket 0015)", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const storage = createMemoryStorage();
     const settingsStore = createSettingsStore(storage);
-    const store = createOverlayStore({
+    const store = createStore({
       settingsStore,
       engineController: fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] }),
     });
@@ -336,7 +336,7 @@ describe("createOverlayStore settings (ticket 0015)", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const storage = createMemoryStorage();
     const settingsStore = createSettingsStore(storage);
-    const store = createOverlayStore({
+    const store = createStore({
       settingsStore,
       engineController: fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] }),
     });
@@ -355,7 +355,7 @@ describe("createOverlayStore settings (ticket 0015)", () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const storage = createMemoryStorage();
     const settingsStore = createSettingsStore(storage);
-    const store = createOverlayStore({
+    const store = createStore({
       settingsStore,
       engineController: fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] }),
     });
@@ -379,7 +379,7 @@ describe("createOverlayStore settings (ticket 0015)", () => {
       { "web-speech": [VOICE_ALEX], piper: [VOICE_AMY] },
       "web-speech",
     );
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     const seen: ResolvedEngine[] = [];
     const dispose = store.onEngineChange((k) => seen.push(k));
 
@@ -400,11 +400,11 @@ describe("createOverlayStore settings (ticket 0015)", () => {
  * Chunk-to-chunk advance happens on `onEnd` (bug 2): speak the next chunk, or
  * go idle at the end. The overlay is hidden until `activate()` is called (bug 1).
  */
-describe("createOverlayStore playback continuation + activation (bugs 1-3)", () => {
+describe("createStore playback continuation + activation (bugs 1-3)", () => {
   it("boundary does not advance reading position", async () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] });
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     await store.ready;
     store.setHighlightMode("paragraph");
     const before = store.positionPercent;
@@ -424,7 +424,7 @@ describe("createOverlayStore playback continuation + activation (bugs 1-3)", () 
   it("onEnd advances to and speaks the next chunk", async () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] });
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     await store.ready;
 
     store.play();
@@ -444,7 +444,7 @@ describe("createOverlayStore playback continuation + activation (bugs 1-3)", () 
   it("onEnd at the last chunk stops playback", async () => {
     vi.stubGlobal("document", fixture(ARTICLE));
     const controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] });
-    const store = createOverlayStore({ engineController: controller });
+    const store = createStore({ engineController: controller });
     await store.ready;
 
     // ARTICLE yields 6 chunks (0..5); seek to the final chunk.
@@ -463,7 +463,7 @@ describe("createOverlayStore playback continuation + activation (bugs 1-3)", () 
 
   it("activated gates the overlay and activate() enables it", async () => {
     vi.stubGlobal("document", fixture(ARTICLE));
-    const store = createOverlayStore();
+    const store = createStore();
 
     expect(store.activated).toBe(false);
     const seen: boolean[] = [];
@@ -494,7 +494,7 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
-describe("createOverlayStore chunk navigation (ticket 0022)", () => {
+describe("createStore chunk navigation (ticket 0022)", () => {
   let cleanupStore: (() => void) | null = null;
 
   afterEach(() => {
@@ -509,7 +509,7 @@ describe("createOverlayStore chunk navigation (ticket 0022)", () => {
     highlighter?: Highlighter,
   ) {
     vi.stubGlobal("document", fixture(ARTICLE));
-    const store = createOverlayStore({ engineController: controller, highlighter });
+    const store = createStore({ engineController: controller, highlighter });
     cleanupStore = store.cleanup;
     return { store, controller };
   }

@@ -5,23 +5,16 @@
  * and the Svelte overlay UI mounted in the Shadow DOM.
  */
 
-import type { ArticleChunk } from "$lib/features/extraction/html-extractor.js";
-import type { Highlighter, HighlightUnit } from "$lib/features/reading/highlighter.js";
-import type { ReaderSettings, SettingsStore } from "$lib/features/settings/settings.js";
+import type { ArticleChunk } from "$lib/features/extraction";
+import type { Highlighter, HighlightUnit } from "$lib/features/reading";
+import type { ReaderSettings, SettingsStore } from "$lib/features/settings";
 import type { EngineController, ResolvedEngine, SpeakOpts, Voice } from "$lib/features/tts";
 
-import { extractArticle } from "$lib/features/extraction/html-extractor.js";
-import {
-  createHighlighter,
-  toHighlightUnit,
-  toSentenceHighlightUnit,
-} from "$lib/features/reading/highlighter.js";
-import {
-  createPositionStore,
-  createChromePositionStorage,
-} from "$lib/features/reading/position.js";
-import { DEFAULT_SETTINGS } from "$lib/features/settings/settings.js";
-import { createSettingsStore, type StorageArea } from "$lib/features/settings/settings.js";
+import { extractArticle } from "$lib/features/extraction";
+import { createHighlighter, toHighlightUnit, toSentenceHighlightUnit } from "$lib/features/reading";
+import { createPositionStore, createChromePositionStorage } from "$lib/features/reading";
+import { DEFAULT_SETTINGS } from "$lib/features/settings";
+import { createSettingsStore, type StorageArea } from "$lib/features/settings";
 import {
   createEngineController,
   createPiperEngine,
@@ -132,7 +125,7 @@ export interface OverlayDependencies {
 }
 
 /** Build the overlay store for the current page. */
-export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore {
+export function createStore(deps: OverlayDependencies = {}): OverlayStore {
   const article = extractArticle();
   const chunks = article?.chunks ?? [];
   const headingChunks = chunks

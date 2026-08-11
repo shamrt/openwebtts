@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { ResolvedEngine, Voice } from "$lib/features/tts";
-  import type { HighlightMode } from "$lib/features/settings/settings.js";
-  import type { HeadingMarker } from "./overlay-store.js";
+  import type { HighlightMode } from "$lib/features/settings";
+  import type { HeadingMarker } from "../store.js";
 
-  import OverlayHandle from "./OverlayHandle.svelte";
-  import OverlayCollapsed from "./OverlayCollapsed.svelte";
-  import OverlayExpanded from "./OverlayExpanded.svelte";
+  import Handle from "./Handle.svelte";
+  import Collapsed from "./Collapsed.svelte";
+  import Expanded from "./Expanded.svelte";
 
   // Presentational shell: owns the accordion state (activated/expanded) and
   // forwards the remaining props to the region components via rest spread.
@@ -50,12 +50,12 @@
 
 {#if activated}
   <div class="container" class:container--expanded={expanded}>
-    <OverlayHandle {expanded} {positionPercent} {onToggleExpanded} />
+    <Handle {expanded} {positionPercent} {onToggleExpanded} />
     {#if !expanded}
-      <OverlayCollapsed {...rest} />
+      <Collapsed {...rest} />
     {/if}
     {#if expanded}
-      <OverlayExpanded positionPercent={positionPercent} {...rest} />
+      <Expanded positionPercent={positionPercent} {...rest} />
     {/if}
   </div>
 {/if}

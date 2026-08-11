@@ -1,6 +1,8 @@
 import type { HighlightMode } from "$lib/features/settings";
 import type { MessageListener } from "$lib/shared/chrome-runtime";
 
+import { createStore } from "$lib/features/overlay";
+import PlayerHost from "$lib/features/overlay/components/PlayerHost.svelte";
 import { getRuntime } from "$lib/shared/chrome-runtime";
 // Extension.js content script entrypoint (TypeScript).
 // - Mounts the Svelte overlay UI into an open Shadow DOM. Component styles are
@@ -10,9 +12,6 @@ import { getRuntime } from "$lib/shared/chrome-runtime";
 // Docs: https://extension.js.org/docs/content-scripts
 import { mount } from "svelte";
 import { writable } from "svelte/store";
-
-import { createOverlayStore } from "./overlay-store.js";
-import OverlayPlayerHost from "./OverlayPlayerHost.svelte";
 
 console.log("[OpenWebTTS] content script ready");
 
@@ -36,7 +35,7 @@ export default function initial() {
   // Svelte injects each component's scoped styles into this shadow root.
   const shadowRoot = rootDiv.attachShadow({ mode: "open" });
 
-  const overlayStore = createOverlayStore();
+  const overlayStore = createStore();
 
   // Bridge the plain-TS overlay store to Svelte reactivity. The store is a
   // plain module (Svelte runes can't live in a .ts compiled by svelte-loader),
@@ -141,11 +140,11 @@ export default function initial() {
 
   // Mount the Svelte overlay. Reactive state (expanded/playing/position/
   // chunkText/settings/voices) is passed as Svelte writable stores; the
-  // OverlayPlayerHost bridge unwraps them into plain props for the
-  // presentational OverlayPlayer, which re-renders on store changes —
+  // PlayerHost bridge unwraps them into plain props for the
+  // presentational Player, which re-renders on store changes —
   // including the async settings load and engine resolution. The mount
   // result is unused.
-  const _player = mount(OverlayPlayerHost, {
+  const _player = mount(PlayerHost, {
     target: shadowRoot,
     props: {
       expanded: ui.expanded,

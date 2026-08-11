@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatPercent } from "./overlay-format.js";
+  import { formatPercent } from "../format.js";
 
   let {
     expanded,

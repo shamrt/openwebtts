@@ -3,13 +3,13 @@
   import { expect, fn, userEvent, within } from "storybook/test";
 
   import type { Voice } from "$lib/features/tts";
-  import type { HeadingMarker } from "./overlay-store.js";
-  import { formatPercent } from "./overlay-format.js";
-  import OverlayPlayer from "./OverlayPlayer.svelte";
+  import type { HeadingMarker } from "../store.js";
+  import { formatPercent } from "../format.js";
+  import Player from "./Player.svelte";
 
   const { Story } = defineMeta({
-    title: "OverlayPlayer",
-    component: OverlayPlayer,
+    title: "Player",
+    component: Player,
     tags: ["autodocs"],
     args: {
       activated: true,

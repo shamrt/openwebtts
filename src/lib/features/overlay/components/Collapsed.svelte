@@ -1,5 +1,5 @@
 <script lang="ts">
-  import OverlayButton from "./OverlayButton.svelte";
+  import Button from "./Button.svelte";
 
   let {
     playing,
@@ -24,32 +24,32 @@
 
 <div class="collapsed">
   <div class="btns">
-    <OverlayButton
+    <Button
       variant="icon"
       ariaLabel="Previous chunk"
       disabled={!canBack}
       onclick={onBack}
     >
       ⏮
-    </OverlayButton>
-    <OverlayButton
+    </Button>
+    <Button
       variant="icon"
       ariaLabel={playing ? "Pause" : "Play"}
       onclick={onPlayPause}
     >
       {playing ? "⏸" : "▶"}
-    </OverlayButton>
-    <OverlayButton
+    </Button>
+    <Button
       variant="icon"
       ariaLabel="Next chunk"
       disabled={!canForward}
       onclick={onForward}
     >
       ⏭
-    </OverlayButton>
-    <OverlayButton variant="icon" ariaLabel="Stop" onclick={onStop}>
+    </Button>
+    <Button variant="icon" ariaLabel="Stop" onclick={onStop}>
       ⏹
-    </OverlayButton>
+    </Button>
   </div>
   <span class="snippet">{chunkText.slice(0, 60)}</span>
 </div>

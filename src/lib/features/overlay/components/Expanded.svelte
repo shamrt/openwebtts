@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { ResolvedEngine, Voice } from "$lib/features/tts";
-  import type { HighlightMode } from "$lib/features/settings/settings.js";
-  import type { HeadingMarker } from "./overlay-store.js";
+  import type { HighlightMode } from "$lib/features/settings";
+  import type { HeadingMarker } from "../store.js";
 
-  import OverlayButton from "./OverlayButton.svelte";
+  import Button from "./Button.svelte";
 
   let {
     playing,
@@ -77,31 +77,31 @@
   <section class="section">
     <h3 class="section_title">Playback</h3>
     <div class="row">
-      <OverlayButton
+      <Button
         variant="outline"
         ariaLabel="Previous chunk"
         disabled={!canBack}
         onclick={onBack}
       >
         ⏮ Back
-      </OverlayButton>
-      <OverlayButton onclick={onPlayPause}>
+      </Button>
+      <Button onclick={onPlayPause}>
         {playing ? "Pause" : "Play"}
-      </OverlayButton>
-      <OverlayButton
+      </Button>
+      <Button
         variant="outline"
         ariaLabel="Next chunk"
         disabled={!canForward}
         onclick={onForward}
       >
         Next ⏭
-      </OverlayButton>
-      <OverlayButton variant="outline" onclick={onStop}>
+      </Button>
+      <Button variant="outline" onclick={onStop}>
         Stop
-      </OverlayButton>
-      <OverlayButton variant="ghost" onclick={onClose}>
+      </Button>
+      <Button variant="ghost" onclick={onClose}>
         Close
-      </OverlayButton>
+      </Button>
     </div>
     <p class="progress">
       {chunkText.slice(0, 120)}
