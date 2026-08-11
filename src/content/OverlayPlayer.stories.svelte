@@ -83,6 +83,7 @@
   play={async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByText(formatPercent(42.7))).toHaveLength(1);
+    await expect(canvas.getByLabelText("Skip to section")).toHaveValue("42.7");
   }}
 />
 

@@ -55,7 +55,7 @@
       <OverlayCollapsed {...rest} />
     {/if}
     {#if expanded}
-      <OverlayExpanded {...rest} />
+      <OverlayExpanded positionPercent={positionPercent} {...rest} />
     {/if}
   </div>
 {/if}
