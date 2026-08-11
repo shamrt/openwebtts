@@ -1,0 +1,123 @@
+<script module lang="ts">
+  import { defineMeta } from "@storybook/addon-svelte-csf";
+  import { expect, fn, userEvent, within } from "storybook/test";
+
+  import type { Voice } from "$lib/features/tts";
+  import type { HeadingMarker } from "./overlay-store.js";
+  import OverlayApp from "./OverlayApp.svelte";
+
+  const { Story } = defineMeta({
+    title: "OverlayApp",
+    component: OverlayApp,
+    tags: ["autodocs"],
+    args: {
+      activated: true,
+      expanded: true,
+      playing: true,
+      positionPercent: 42.7,
+      chunkText:
+        "The quick brown fox jumps over the lazy dog while the moon rises over the quiet village at midnight.",
+      currentHeadingIndex: 1,
+      canBack: true,
+      canForward: true,
+      onPlayPause: fn(),
+      onToggleExpanded: fn(),
+      onStop: fn(),
+      onSeekPercent: fn(),
+      onBack: fn(),
+      onForward: fn(),
+      onEngineChange: fn(),
+      onHighlightModeChange: fn(),
+      onRateChange: fn(),
+      onVolumeChange: fn(),
+      onPitchChange: fn(),
+      onVoiceChange: fn(),
+      onClose: fn(),
+    },
+  });
+
+  const headings: HeadingMarker[] = [
+    { chunkIndex: 0, text: "Introduction", percent: 0 },
+    { chunkIndex: 1, text: "Methods", percent: 25.3 },
+    { chunkIndex: 2, text: "Results", percent: 58.1 },
+    { chunkIndex: 3, text: "Conclusion", percent: 87.9 },
+  ];
+
+  const voices: Voice[] = [
+    { name: "Daniel", lang: "en-GB", voiceUri: "urn:daniel", isLocal: false },
+    { name: "Zira", lang: "en-US", voiceUri: "urn:zira", isLocal: false },
+  ];
+</script>
+
+<Story
+  name="Collapsed"
+  args={{
+    expanded: false,
+    playing: true,
+    canBack: false,
+    canForward: false,
+    positionPercent: 12.3,
+    chunkText: "A short snippet.",
+  }}
+/>
+
+<Story
+  name="Expanded"
+  args={{
+    headings,
+    voices,
+    engineKind: "piper",
+    highlightMode: "sentence",
+    rate: 1.5,
+    pitch: 0.8,
+    volume: 0.6,
+  }}
+/>
+
+<Story
+  name="Expanded idle"
+  args={{
+    playing: false,
+    headings: [],
+    voices: [],
+    positionPercent: 0,
+    chunkText: "",
+    currentHeadingIndex: null,
+    canBack: false,
+    canForward: false,
+  }}
+/>
+
+<Story
+  name="Interactions"
+  args={{ canBack: false, canForward: false }}
+  play={async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    for (const spy of [
+      args.onPlayPause,
+      args.onToggleExpanded,
+      args.onBack,
+      args.onEngineChange,
+    ]) {
+      spy.mockClear();
+    }
+
+    // Handle toggles the accordion.
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Toggle OpenWebTTS overlay" }),
+    );
+    await expect(args.onToggleExpanded).toHaveBeenCalledTimes(1);
+
+    // Play/pause fires the callback (playing: true → "Pause").
+    await userEvent.click(canvas.getByRole("button", { name: "Pause" }));
+    await expect(args.onPlayPause).toHaveBeenCalledTimes(1);
+
+    // Disabled nav buttons must not fire.
+    await userEvent.click(canvas.getByRole("button", { name: "Previous chunk" }));
+    await expect(args.onBack).not.toHaveBeenCalled();
+
+    // Engine select reports the chosen engine.
+    await userEvent.selectOptions(canvas.getByLabelText("Engine"), "piper");
+    await expect(args.onEngineChange).toHaveBeenCalledWith("piper");
+  }}
+/>
