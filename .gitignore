@@ -45,3 +45,5 @@ extension-env.d.ts
 .env
 .env*
 !.env.example
+*storybook.log
+storybook-static
