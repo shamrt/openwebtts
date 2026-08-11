@@ -196,7 +196,7 @@
             </button>
           </div>
           <p class="overlay_progress">
-            {positionPercent.toFixed(1)}% — {chunkText.slice(0, 120)}
+            {chunkText.slice(0, 120)}
           </p>
         </section>
 
@@ -224,9 +224,6 @@
                 {/each}
               </datalist>
               <div class="overlay_nav_readout">
-                <span class="overlay_percent"
-                  >{positionPercent.toFixed(1)}%</span
-                >
                 <span class="overlay_nav_heading">
                   {#if currentHeadingIndex !== null && headings[currentHeadingIndex]}
                     {headings[currentHeadingIndex].text}
