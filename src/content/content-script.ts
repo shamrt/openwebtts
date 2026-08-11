@@ -13,7 +13,7 @@ import { mount } from "svelte";
 import { writable } from "svelte/store";
 
 import { createOverlayStore } from "./overlay-store.js";
-import OverlayHost from "./OverlayHost.svelte";
+import OverlayPlayerHost from "./OverlayPlayerHost.svelte";
 import overlayCss from "./styles.css?inline";
 
 console.log("[OpenWebTTS] content script ready");
@@ -149,10 +149,11 @@ export default function initial() {
 
   // Mount the Svelte overlay. Reactive state (expanded/playing/position/
   // chunkText/settings/voices) is passed as Svelte writable stores; the
-  // OverlayHost bridge unwraps them into plain props for the presentational
-  // OverlayApp, which re-renders on store changes — including the async
-  // settings load and engine resolution. The mount result is unused.
-  const _app = mount(OverlayHost, {
+  // OverlayPlayerHost bridge unwraps them into plain props for the
+  // presentational OverlayPlayer, which re-renders on store changes —
+  // including the async settings load and engine resolution. The mount
+  // result is unused.
+  const _player = mount(OverlayPlayerHost, {
     target: contentDiv,
     props: {
       expanded: ui.expanded,

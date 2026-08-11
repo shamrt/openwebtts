@@ -5,12 +5,12 @@
   import type { Voice } from "$lib/features/tts";
   import type { HeadingMarker } from "./overlay-store.js";
   import { formatPercent } from "./overlay-format.js";
-  import OverlayApp from "./OverlayApp.svelte";
+  import OverlayPlayer from "./OverlayPlayer.svelte";
   import "./styles.css";
 
   const { Story } = defineMeta({
-    title: "OverlayApp",
-    component: OverlayApp,
+    title: "OverlayPlayer",
+    component: OverlayPlayer,
     tags: ["autodocs"],
     args: {
       activated: true,

@@ -4,10 +4,10 @@
   import type { Writable } from "svelte/store";
 
   import type { HeadingMarker } from "./overlay-store.js";
-  import OverlayApp from "./OverlayApp.svelte";
+  import OverlayPlayer from "./OverlayPlayer.svelte";
 
   // Thin bridge between the content-script's writable stores (plain TS, no
-  // runes) and the presentational OverlayApp, which takes plain values and
+  // runes) and the presentational OverlayPlayer, which takes plain values and
   // reports every mutation through callbacks. `$store` auto-subscription keeps
   // the overlay re-rendering on store changes.
   let {
@@ -73,7 +73,7 @@
   } = $props();
 </script>
 
-<OverlayApp
+<OverlayPlayer
   activated={$activated}
   expanded={$expanded}
   playing={$playing}
