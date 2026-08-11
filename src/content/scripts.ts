@@ -13,7 +13,7 @@ import { mount } from "svelte";
 import { writable } from "svelte/store";
 
 import { createOverlayStore } from "./overlay-store.js";
-import OverlayApp from "./OverlayApp.svelte";
+import OverlayHost from "./OverlayHost.svelte";
 import overlayCss from "./styles.css?inline";
 
 console.log("[OpenWebTTS] content script ready");
@@ -61,9 +61,9 @@ export default function initial() {
     canForward: writable(overlayStore.nav.canForward),
     engineKind: writable(overlayStore.engineKind),
     highlightMode: writable(overlayStore.settings.highlightMode),
-    rate: writable([overlayStore.settings.rate]),
-    volume: writable([overlayStore.settings.volume]),
-    pitch: writable([overlayStore.settings.pitch]),
+    rate: writable(overlayStore.settings.rate),
+    volume: writable(overlayStore.settings.volume),
+    pitch: writable(overlayStore.settings.pitch),
     voiceUri: writable(overlayStore.settings.voiceUri),
     voices: writable(overlayStore.voices),
   };
@@ -79,9 +79,9 @@ export default function initial() {
     overlayStore.onEngineChange((k) => ui.engineKind.set(k)),
     overlayStore.onSettingsChange((s) => {
       ui.highlightMode.set(s.highlightMode);
-      ui.rate.set([s.rate]);
-      ui.volume.set([s.volume]);
-      ui.pitch.set([s.pitch]);
+      ui.rate.set(s.rate);
+      ui.volume.set(s.volume);
+      ui.pitch.set(s.pitch);
       ui.voiceUri.set(s.voiceUri);
     }),
     overlayStore.onVoicesChange((v) => ui.voices.set(v)),
@@ -148,10 +148,11 @@ export default function initial() {
   }
 
   // Mount the Svelte overlay. Reactive state (expanded/playing/position/
-  // chunkText/settings/voices) is passed as Svelte writable stores so the
-  // overlay re-renders on store changes — including the async settings load
-  // and engine resolution. The mount result is unused.
-  const _app = mount(OverlayApp, {
+  // chunkText/settings/voices) is passed as Svelte writable stores; the
+  // OverlayHost bridge unwraps them into plain props for the presentational
+  // OverlayApp, which re-renders on store changes — including the async
+  // settings load and engine resolution. The mount result is unused.
+  const _app = mount(OverlayHost, {
     target: contentDiv,
     props: {
       expanded: ui.expanded,
