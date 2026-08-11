@@ -5,6 +5,7 @@
   import type { Voice } from "$lib/features/tts";
   import type { HeadingMarker } from "./overlay-store.js";
   import OverlayApp from "./OverlayApp.svelte";
+  import "./styles.css";
 
   const { Story } = defineMeta({
     title: "OverlayApp",
