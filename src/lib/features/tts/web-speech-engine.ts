@@ -26,6 +26,8 @@ interface Synth {
   cancel(): void;
   pause(): void;
   resume(): void;
+  /** True while a speak() utterance is paused (cleared on resume/end/cancel). */
+  readonly paused: boolean;
   getVoices(): SynthVoice[];
   addEventListener(type: "voiceschanged", cb: (e: Event) => void): void;
   removeEventListener(type: "voiceschanged", cb: (e: Event) => void): void;
@@ -118,6 +120,10 @@ export function createWebSpeechEngine(): WebSpeechEngine {
 
     resume(): void {
       getSynth()?.resume();
+    },
+
+    isPaused(): boolean {
+      return getSynth()?.paused ?? false;
     },
 
     async getVoices(): Promise<Voice[]> {

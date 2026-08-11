@@ -6,6 +6,7 @@
  */
 
 import type { ArticleChunk } from "$lib/features/extraction/html-extractor.js";
+import type { Highlighter, HighlightUnit } from "$lib/features/reading/highlighter.js";
 import type { ReaderSettings, SettingsStore } from "$lib/features/settings/settings.js";
 import type { EngineController, ResolvedEngine, SpeakOpts, Voice } from "$lib/features/tts";
 
@@ -126,6 +127,8 @@ export interface OverlayDependencies {
   settingsStore?: SettingsStore;
   /** Optional engine controller; defaults to the hybrid Web Speech/Piper controller. */
   engineController?: EngineController;
+  /** Optional highlighter; defaults to the real DOM highlighter. Test seam. */
+  highlighter?: Highlighter;
 }
 
 /** Build the overlay store for the current page. */
@@ -170,8 +173,8 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
   let engineKind: ResolvedEngine = "piper";
   let voices: Voice[] = [];
   let currentChunk: ArticleChunk | null = chunks[0] ?? null;
+  const highlighter = deps.highlighter ?? createHighlighter(settings.highlightMode);
   let positionPercent = position.getPosition().percentComplete;
-  const highlighter = createHighlighter(settings.highlightMode);
   let boundaryDisposer: (() => void) | null = null;
   let endDisposer: (() => void) | null = null;
   let engineDisposer: (() => void) | null = null;
@@ -353,12 +356,39 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     notifySettings();
   });
 
-  const positionDisposer = position.onChange(() => {
+  /** Derive the highlight unit for the active chunk from the reading position.
+   * The position subscription re-evaluates this on every change so the active
+   * chunk is always highlighted (bug 2) — not only when an audio boundary
+   * next fires. Paragraph mode highlights the whole chunk; sentence mode
+   * highlights its first sentence until a boundary refines it; "off" yields
+   * null (no highlight). */
+  function deriveHighlightUnit(chunk: ArticleChunk): HighlightUnit | null {
+    if (settings.highlightMode === "sentence") return toSentenceHighlightUnit(chunk, 0);
+    if (settings.highlightMode === "paragraph") return toHighlightUnit(chunk);
+    return null;
+  }
+
+  /** Re-apply the active-chunk highlight when the reading position is
+   * meaningful (playing or paused) — skipped while idle so stop()'s cleared
+   * highlight is not re-applied by its reset seek. */
+  function applyActiveHighlight(): void {
+    if (cleanedUp || state.status === "idle" || !currentChunk) return;
+    const unit = deriveHighlightUnit(currentChunk);
+    if (unit) highlighter.set(unit);
+  }
+
+  // The highlight is a derived effect of the reading position: subscribe via
+  // the position store's Svelte-readable surface and re-derive on every
+  // change (seek, skip, boundary advance, restore) so the active chunk is
+  // always highlighted (bug 2). The immediate emit at construction is a no-op
+  // (state is idle).
+  const positionDisposer = position.subscribe(() => {
     positionPercent = position.getPosition().percentComplete;
     updateCurrentChunk();
     // Chunk change or seek (boundary advance, slider, restore): the elapsed
     // clock belongs to the chunk that was just spoken — reset it (ticket 0022).
     resetElapsed();
+    applyActiveHighlight();
   });
 
   // Wire the engine once the controller has hydrated its persisted selection.
@@ -459,11 +489,21 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     },
     play(): void {
       if (state.status === "playing") return;
+      // Bug 1: a paused→playing transition resumes the paused utterance at its
+      // offset when the engine still has a live one (engine.isPaused()); only a
+      // fresh start (idle) or a lost utterance (Chrome auto-stops speechSynthesis
+      // after ~15s of silence) re-speaks the current chunk from its top.
+      const resuming = state.status === "paused";
       state = { status: "playing" };
       notifyState();
       void ready.then(() => {
         if (state.status !== "playing") return;
-        speakCurrent();
+        if (resuming && engine?.isPaused()) {
+          engine.resume();
+          startElapsedTimer();
+        } else {
+          speakCurrent();
+        }
       });
     },
     pause(): void {

@@ -6,7 +6,9 @@
  * (`e2e/navigation.spec.ts`) covers the rendered slider itself.
  */
 
+import type { Highlighter, HighlightUnit } from "$lib/features/reading/highlighter.js";
 import type { ReaderSettings } from "$lib/features/settings/settings.js";
+import type { HighlightMode } from "$lib/features/settings/settings.js";
 import type {
   BoundaryEvent,
   EngineController,
@@ -15,6 +17,7 @@ import type {
   Voice,
 } from "$lib/features/tts";
 
+import { toHighlightUnit } from "$lib/features/reading/highlighter.js";
 import { createSettingsStore, type StorageArea } from "$lib/features/settings/settings.js";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -118,6 +121,7 @@ function fakeEngineController(
   _stops: number;
   _pauses: number;
   _resumes: number;
+  _setPaused(value: boolean): void;
   _reset(): void;
 } {
   let kind: ResolvedEngine = initial;
@@ -129,6 +133,11 @@ function fakeEngineController(
   let stops = 0;
   let pauses = 0;
   let resumes = 0;
+  // Tracks the "is the synth paused with a live utterance" state the
+  // overlay-store's play() branches on (bug 1). pause() sets it; a fresh
+  // speak/stop/resume clears it. `_setPaused` simulates the synth auto-stopping
+  // (no live utterance) so the replay fallback can be exercised.
+  let paused = false;
 
   function resetCalls(): void {
     speaks.length = 0;
@@ -141,15 +150,22 @@ function fakeEngineController(
     speaks,
     speak(text: string): void {
       speaks.push(text);
+      paused = false;
     },
     stop(): void {
       stops += 1;
+      paused = false;
     },
     pause(): void {
       pauses += 1;
+      paused = true;
     },
     resume(): void {
       resumes += 1;
+      paused = false;
+    },
+    isPaused(): boolean {
+      return paused;
     },
     async getVoices(): Promise<Voice[]> {
       return voicesByKind[kind];
@@ -201,6 +217,42 @@ function fakeEngineController(
     },
     _reset(): void {
       resetCalls();
+    },
+    _setPaused(value: boolean): void {
+      paused = value;
+    },
+  };
+}
+
+/** Recording Highlighter stand-in: captures set/clear calls so the reactive
+ * "active chunk always highlighted" contract (bug 2) is asserted without the
+ * real DOM. Mirrors the real Highlighter contract (0016). */
+function fakeHighlighter(): Highlighter & {
+  setCalls: HighlightUnit[];
+  clearCalls: number;
+  _reset(): void;
+} {
+  const setCalls: HighlightUnit[] = [];
+  let clearCalls = 0;
+  return {
+    set(unit: HighlightUnit): void {
+      setCalls.push(unit);
+    },
+    clear(): void {
+      clearCalls += 1;
+    },
+    setMode(_mode: HighlightMode): void {
+      // mode changes are irrelevant to the recorded call log
+    },
+    get setCalls(): HighlightUnit[] {
+      return setCalls;
+    },
+    get clearCalls(): number {
+      return clearCalls;
+    },
+    _reset(): void {
+      setCalls.length = 0;
+      clearCalls = 0;
     },
   };
 }
@@ -452,9 +504,12 @@ describe("createOverlayStore chunk navigation (ticket 0022)", () => {
     vi.unstubAllGlobals();
   });
 
-  function makeStore(controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] })) {
+  function makeStore(
+    controller = fakeEngineController({ "web-speech": [VOICE_ALEX], piper: [] }),
+    highlighter?: Highlighter,
+  ) {
     vi.stubGlobal("document", fixture(ARTICLE));
-    const store = createOverlayStore({ engineController: controller });
+    const store = createOverlayStore({ engineController: controller, highlighter });
     cleanupStore = store.cleanup;
     return { store, controller };
   }
@@ -587,7 +642,7 @@ describe("createOverlayStore chunk navigation (ticket 0022)", () => {
     expect(store.nav.elapsedInChunk).toBe(0);
   });
 
-  it("pause then play re-speaks the current chunk (0013 contract unchanged)", async () => {
+  it("pause then play resumes the paused utterance at its offset (bug 1)", async () => {
     const { store, controller } = makeStore();
     await store.ready;
     store.play();
@@ -600,6 +655,28 @@ describe("createOverlayStore chunk navigation (ticket 0022)", () => {
     await flushMicrotasks();
 
     expect(store.state.status).toBe("playing");
+    // The paused utterance is resumed — NOT re-spoken from the chunk top.
+    expect(controller._resumes).toBe(1);
+    expect(controller.speaks).toEqual([]);
+  });
+
+  it("pause then play re-speaks the current chunk when the synth has no live utterance (bug 1 fallback)", async () => {
+    const { store, controller } = makeStore();
+    await store.ready;
+    store.play();
+    await flushMicrotasks();
+    store.pause();
+    await flushMicrotasks();
+    // Simulate Chrome auto-stopping the paused synth (no live utterance to resume).
+    controller._setPaused(false);
+    controller._reset();
+
+    store.play();
+    await flushMicrotasks();
+
+    expect(store.state.status).toBe("playing");
+    expect(controller._resumes).toBe(0);
+    // Fallback: re-speak the current chunk from its top.
     expect(controller.speaks).toEqual(["Intro"]);
   });
 
@@ -631,5 +708,63 @@ describe("createOverlayStore chunk navigation (ticket 0022)", () => {
     store.seekToPercent(50);
     expect(store.currentChunk?.text).toBe("Para two.");
     expect(store.positionPercent).toBe(44.2);
+  });
+
+  it("nextChunk while playing highlights the new chunk immediately (bug 2)", async () => {
+    const highlighter = fakeHighlighter();
+    const { store } = makeStore(undefined, highlighter);
+    await store.ready;
+    store.setHighlightMode("paragraph");
+    store.play();
+    await flushMicrotasks();
+    highlighter._reset();
+
+    store.nextChunk();
+    await flushMicrotasks();
+
+    expect(store.currentChunk?.text).toBe("Para one.");
+    // The highlight follows the active chunk the moment the position moves —
+    // not only when an audio boundary next fires.
+    expect(highlighter.setCalls.at(-1)).toEqual(toHighlightUnit(store.currentChunk!));
+  });
+
+  it("nextChunk while paused highlights the new chunk (bug 2)", async () => {
+    const highlighter = fakeHighlighter();
+    const { store } = makeStore(undefined, highlighter);
+    await store.ready;
+    store.setHighlightMode("paragraph");
+    store.play();
+    await flushMicrotasks();
+    store.pause();
+    await flushMicrotasks();
+    highlighter._reset();
+
+    store.nextChunk();
+    await flushMicrotasks();
+
+    expect(store.state.status).toBe("paused");
+    expect(store.currentChunk?.text).toBe("Para one.");
+    expect(highlighter.setCalls.at(-1)).toEqual(toHighlightUnit(store.currentChunk!));
+  });
+
+  it("stop clears the highlight and does not re-apply it on the reset seek (idle)", async () => {
+    const highlighter = fakeHighlighter();
+    const { store } = makeStore(undefined, highlighter);
+    await store.ready;
+    store.setHighlightMode("paragraph");
+    store.play();
+    await flushMicrotasks();
+    store.seek(2);
+    await flushMicrotasks();
+    expect(highlighter.setCalls.length).toBeGreaterThan(0);
+    highlighter._reset();
+
+    store.stop();
+    await flushMicrotasks();
+
+    // stop() clears the highlight; the position.reset seek (to chunk 0) must
+    // NOT re-apply a highlight while idle.
+    expect(highlighter.clearCalls).toBeGreaterThanOrEqual(1);
+    expect(highlighter.setCalls).toEqual([]);
   });
 });

@@ -49,6 +49,12 @@ export interface Engine {
   stop(): void;
   pause(): void;
   resume(): void;
+  /** Whether the engine has a live, paused utterance that `resume()` can
+   * continue. Consumers branch on this to resume-at-offset vs. re-speak from
+   * the chunk top (bug 1): after `pause()` it is true until the utterance ends,
+   * is cancelled, or the backend auto-stops it (Chrome drops `speechSynthesis`
+   * after ~15s of silence). */
+  isPaused(): boolean;
   getVoices(): Promise<Voice[]>;
   onVoicesChanged(cb: (voices: Voice[]) => void): () => void;
   /**

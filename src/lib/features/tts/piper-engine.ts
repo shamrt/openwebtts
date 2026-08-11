@@ -57,8 +57,11 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
   // reaches the audio channel.
   let currentToken = 0;
   // Token of the audio currently playing; the `ended` broadcast is suppressed
-  // unless it matches `currentToken` (a newer `speak` or `stop` supersedes it).
   let playingToken = 0;
+  // Whether a live, paused audio buffer exists that `resume()` can continue —
+  // the offscreen `<audio>` element's `paused` state is not queryable from the
+  // controller side, so the engine tracks it locally (bug 1).
+  let paused = false;
   function mapVoice(m: PiperVoiceModel): Voice {
     return { name: m.name, lang: m.lang, voiceUri: m.voiceUri, isLocal: true };
   }
@@ -146,6 +149,7 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
   return {
     speak(text: string, opts: SpeakOpts): void {
       const token = ++currentToken;
+      paused = false; // a fresh synthesis supersedes any paused buffer
       // Fire-and-forget: any rejection (model cache, synth message, audio
       // channel, audioToSrc) is swallowed so a discarded pipeline never
       // surfaces as an unhandled promise rejection.
@@ -154,15 +158,22 @@ export function createPiperEngine(options: { voices: PiperVoiceModel[] }): Engin
 
     stop(): void {
       currentToken += 1; // supersede any in-flight synthesis
+      paused = false;
       void audioChannel.stop();
     },
 
     pause(): void {
+      paused = true;
       void audioChannel.pause();
     },
 
     resume(): void {
+      paused = false;
       void audioChannel.play();
+    },
+
+    isPaused(): boolean {
+      return paused;
     },
 
     async getVoices(): Promise<Voice[]> {

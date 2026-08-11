@@ -76,6 +76,24 @@ describe("createPositionStore", () => {
     dispose();
   });
 
+  it("subscribe immediately emits the current position then notifies on change", () => {
+    const store = createPositionStore({ totalChunks: 4, headingChunks: [] });
+    store.seek(2);
+    const seen: ReadingPosition[] = [];
+    const dispose = store.subscribe((pos) => seen.push(pos));
+
+    // Svelte-readable contract: the listener fires once with the current value.
+    expect(seen).toHaveLength(1);
+    expect(seen[0].chunkIndex).toBe(2);
+
+    store.next();
+    expect(seen[1].chunkIndex).toBe(3);
+    dispose();
+
+    store.previous();
+    expect(seen).toHaveLength(2);
+  });
+
   it("does not emit when seeking the same chunk", () => {
     const store = createPositionStore({ totalChunks: 4, headingChunks: [] });
     const changes: ReadingPosition[] = [];

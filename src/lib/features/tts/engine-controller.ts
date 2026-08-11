@@ -185,6 +185,9 @@ export async function createEngineController(options: {
     resume(): void {
       engines[current].resume();
     },
+    isPaused(): boolean {
+      return engines[current].isPaused();
+    },
     async getVoices(): Promise<Voice[]> {
       return engines[current].getVoices();
     },

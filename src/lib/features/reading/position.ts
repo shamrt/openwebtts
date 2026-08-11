@@ -34,6 +34,13 @@ export interface PositionStore {
   getPosition(): ReadingPosition;
   /** Subscribe to position changes. Returns disposer. */
   onChange(listener: PositionChangeListener): () => void;
+  /**
+   * Svelte-readable subscription: emits the current position immediately, then
+   * on every change. Lets Svelte consumers (`$store`) and the overlay store
+   * derive state — e.g. the active-chunk highlight — reactively from position.
+   * Returns a disposer.
+   */
+  subscribe(listener: PositionChangeListener): () => void;
 }
 
 /**
@@ -193,6 +200,14 @@ export function createPositionStore(options: CreatePositionStoreOptions): Positi
     },
     getPosition: currentPosition,
     onChange(listener: PositionChangeListener): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    subscribe(listener: PositionChangeListener): () => void {
+      // Svelte-readable contract: emit the current value before notifying.
+      listener(currentPosition());
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
