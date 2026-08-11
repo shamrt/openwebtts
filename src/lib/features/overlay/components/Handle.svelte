@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatPercent } from "../format.js";
+  import { formatPercent } from "../utils/format.js";
 
   let {
     expanded,

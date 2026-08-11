@@ -4,7 +4,7 @@
 
   import type { Voice } from "$lib/features/tts";
   import type { HeadingMarker } from "../store.js";
-  import { formatPercent } from "../format.js";
+  import { formatPercent } from "../utils/format.js";
   import Player from "./Player.svelte";
 
   const { Story } = defineMeta({
