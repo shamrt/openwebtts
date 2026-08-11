@@ -415,8 +415,10 @@ export function createOverlayStore(deps: OverlayDependencies = {}): OverlayStore
     });
     // Bug 2 fix: advance to and speak the next chunk when an utterance ends.
     // The controller relays onEnd only from the engine currently driving
-    // playback, and `end` also fires on cancel — guard on play state so a
-    // stop/cancel end does not spuriously advance or re-speak.
+    // playback. Engines now suppress cancel/superseded ends with a generation
+    // token (Piper's currentToken/playingToken; Web Speech's utterance token),
+    // so onEnd here means natural completion — the play-state guard is a
+    // belt-and-suspenders against an end arriving after the user stopped.
     endDisposer = controller.onEnd(() => {
       if (state.status !== "playing") return;
       const atEnd = position.getPosition().chunkIndex >= chunks.length - 1;

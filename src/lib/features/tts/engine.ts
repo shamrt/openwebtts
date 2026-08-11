@@ -58,10 +58,12 @@ export interface Engine {
   getVoices(): Promise<Voice[]>;
   onVoicesChanged(cb: (voices: Voice[]) => void): () => void;
   /**
-   * An utterance finished speaking. Fires on natural completion AND when
-   * cancelled (e.g. `speechSynthesis.cancel()` also fires the utterance
-   * `end` event); consumers MUST guard on their own play state before
-   * treating this as "advance to the next chunk".
+   * An utterance finished speaking. Engines fire this ONLY on natural
+   * completion — a cancel/stop (e.g. `speechSynthesis.cancel()`) MUST NOT fire
+   * it. Adapters suppress superseded/cancelled events with a generation token
+   * (Piper's `currentToken`/`playingToken`, Web Speech's utterance token) so a
+   * consumer can treat every `onEnd` as "advance to the next chunk" without
+   * distinguishing cancel from completion (bug 2).
    */
   onEnd(cb: () => void): () => void;
 }

@@ -82,12 +82,20 @@ export interface WebSpeechEngine extends Engine {
 export function createWebSpeechEngine(): WebSpeechEngine {
   const boundaryCbs = new Set<(e: BoundaryEvent) => void>();
   const endCbs = new Set<() => void>();
+  // Monotonic utterance token (mirrors Piper's currentToken): each speak()
+  // captures a token, and stop() bumps it so a cancelled/superseded utterance's
+  // late `boundary`/`end` events are dropped. This makes onEnd mean "natural
+  // completion" only — the consumer advances the reading position without
+  // distinguishing cancel from end (bug 2). pause()/resume() do NOT bump it so
+  // the resumed utterance's events keep flowing.
+  let currentToken = 0;
   return {
     speak(text: string, opts: SpeakOpts): void {
       const synth = getSynth();
       const Ctor = getUtteranceCtor();
       if (!synth || !Ctor) return;
 
+      const token = ++currentToken;
       const utterance = new Ctor(text);
       utterance.rate = opts.rate;
       utterance.pitch = opts.pitch;
@@ -96,6 +104,7 @@ export function createWebSpeechEngine(): WebSpeechEngine {
       if (match) utterance.voice = match;
 
       utterance.addEventListener("boundary", (e) => {
+        if (token !== currentToken) return; // superseded by a newer speak/stop
         const boundary: BoundaryEvent = {
           charIndex: e.charIndex,
           charLength: e.charLength,
@@ -104,6 +113,7 @@ export function createWebSpeechEngine(): WebSpeechEngine {
         for (const cb of boundaryCbs) cb(boundary);
       });
       utterance.addEventListener("end", () => {
+        if (token !== currentToken) return; // cancelled by stop() — not natural
         for (const cb of endCbs) cb();
       });
 
@@ -111,6 +121,7 @@ export function createWebSpeechEngine(): WebSpeechEngine {
     },
 
     stop(): void {
+      currentToken += 1; // supersede any speaking utterance; its end is dropped
       getSynth()?.cancel();
     },
 

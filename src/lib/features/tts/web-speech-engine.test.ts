@@ -306,6 +306,65 @@ describe("Web Speech adapter (ticket 0004)", () => {
     expect(synth.resumed).toBe(true);
   });
 
+  it("stop suppresses the cancelled utterance's end event (bug 2)", () => {
+    synth = new FakeSynth();
+    synth.voices = VOICES;
+    install(synth);
+    const engine = createWebSpeechEngine();
+
+    let fired = 0;
+    engine.onEnd(() => {
+      fired++;
+    });
+
+    engine.speak("Chunk zero", { rate: 1, pitch: 1, volume: 1, voiceUri: "alex.uri" });
+    const first = synth.spoken[0]!;
+    // A skip/stop cancels the speaking utterance; Web Speech fires its `end`
+    // event — but the adapter MUST NOT relay it as a natural completion, or
+    // the consumer double-advances the reading position.
+    engine.stop();
+    first.emit("end", { utterance: { text: "Chunk zero" } });
+
+    expect(fired).toBe(0);
+
+    // A fresh utterance's natural completion still fires.
+    engine.speak("Chunk one", { rate: 1, pitch: 1, volume: 1, voiceUri: "alex.uri" });
+    synth.spoken[1]!.emit("end", { utterance: { text: "Chunk one" } });
+    expect(fired).toBe(1);
+  });
+
+  it("stop suppresses stale boundary events from the cancelled utterance", () => {
+    synth = new FakeSynth();
+    synth.voices = VOICES;
+    install(synth);
+    const engine = createWebSpeechEngine();
+
+    const events: BoundaryEvent[] = [];
+    engine.onBoundary((e) => events.push(e));
+
+    engine.speak("Chunk zero", { rate: 1, pitch: 1, volume: 1, voiceUri: "alex.uri" });
+    const first = synth.spoken[0]!;
+    engine.stop();
+    // An in-flight boundary from the cancelled utterance must not highlight.
+    first.emit("boundary", { charIndex: 4, utterance: { text: "Chunk zero" } });
+    expect(events).toHaveLength(0);
+
+    engine.speak("Chunk one", { rate: 1, pitch: 1, volume: 1, voiceUri: "alex.uri" });
+    synth.spoken[1]!.emit("boundary", { charIndex: 0, utterance: { text: "Chunk one" } });
+    expect(events).toHaveLength(1);
+  });
+
+  it("isPaused reports whether the synth is paused", () => {
+    synth = new FakeSynth();
+    synth.voices = VOICES;
+    install(synth);
+    const engine = createWebSpeechEngine();
+
+    expect(engine.isPaused()).toBe(false);
+    engine.pause();
+    expect(engine.isPaused()).toBe(true);
+  });
+
   it("imports and operates safely with no speechSynthesis present", async () => {
     const g = globalThis as Record<string, unknown>;
     delete g.window;
