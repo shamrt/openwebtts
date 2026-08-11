@@ -25,7 +25,7 @@ export class OverlayPage {
 
   /** The accordion overlay shell, inside the host's open Shadow DOM. */
   overlayRoot(): Locator {
-    return this.page.locator(".overlay_root");
+    return this.host().locator(".container");
   }
 
   async gotoArticle(): Promise<void> {
@@ -67,30 +67,32 @@ export class OverlayPage {
   }
 
   playButton(): Locator {
-    return this.page.locator('[aria-label="Play"]');
+    return this.host().locator('[aria-label="Play"]');
   }
 
   pauseButton(): Locator {
-    return this.page.locator('[aria-label="Pause"]');
+    return this.host().locator('[aria-label="Pause"]');
   }
 
   /** The expanded panel's play/pause control (text-labeled). */
   expandedPlayPause(): Locator {
-    return this.page.locator(".overlay_expanded").getByRole("button", { name: /Play|Pause/ });
+    return this.host()
+      .locator(".expanded")
+      .getByRole("button", { name: /Play|Pause/ });
   }
 
   /** The expanded panel's prev/next chunk buttons (ticket 0022). */
   backButton(): Locator {
-    return this.page.locator(".overlay_expanded").getByRole("button", { name: "Previous chunk" });
+    return this.host().locator(".expanded").getByRole("button", { name: "Previous chunk" });
   }
 
   forwardButton(): Locator {
-    return this.page.locator(".overlay_expanded").getByRole("button", { name: "Next chunk" });
+    return this.host().locator(".expanded").getByRole("button", { name: "Next chunk" });
   }
 
   /** The expanded panel's live progress line: "{percent}% — {chunk text}". */
   progress(): Locator {
-    return this.page.locator(".overlay_progress");
+    return this.host().locator(".progress");
   }
 
   /**
@@ -103,13 +105,13 @@ export class OverlayPage {
    * real pointer click at the handle's current box.
    */
   async expand(): Promise<void> {
-    const handle = this.page.locator(".overlay_handle");
+    const handle = this.host().locator(".handle");
     await handle.waitFor({ state: "visible" });
     await handle.click({ force: true });
   }
 
   navSlider(): Locator {
-    return this.page.locator(".overlay_range--nav");
+    return this.host().locator(".range--nav");
   }
 
   /**
@@ -118,17 +120,13 @@ export class OverlayPage {
    * heading chunk's percent, so the marker's own value is the fill target.
    */
   async dragNavTo(markerIndex: number): Promise<void> {
-    const marker = this.page.locator("#openwebtts-heading-markers option").nth(markerIndex);
+    const marker = this.host().locator("#openwebtts-heading-markers option").nth(markerIndex);
     const value = (await marker.getAttribute("value")) ?? "";
     await this.navSlider().fill(value);
   }
 
   navHeading(): Locator {
-    return this.page.locator(".overlay_nav_heading");
-  }
-
-  navReadout(): Locator {
-    return this.page.locator(".overlay_nav_readout");
+    return this.host().locator(".nav_heading");
   }
 
   /** Switch the store's highlight mode via the test seam. */

@@ -10,7 +10,7 @@ import { test, expect } from "./fixtures";
  * `e2e/fixtures.ts` builds the extension, loads it into headed Chromium, and
  * serves fixture pages locally. The overlay mounts in an open Shadow DOM under
  * `[data-extension-root="true"]`; Playwright's CSS engine pierces open shadow
- * boundaries, so `.overlay_range--nav` resolves inside it. Interaction goes
+ * boundaries, so `.range--nav` resolves inside it. Interaction goes
  * through the `OverlayPage` POM.
  *
  * The fixture article (`e2e/fixtures/article.html`) yields 8 chunks with 4
@@ -53,13 +53,9 @@ test("dragging to the 2nd heading marker moves reading position to that heading'
   // marker ("Why read aloud") by filling the slider with the marker's value.
   await overlayPage.dragNavTo(1);
 
-  // The readout beside the slider shows the current heading and the marker's
-  // percent.
+  // The readout beside the slider shows the current heading (the percent
+  // display was removed in 33d6e38; the handle keeps the live percent).
   await expect(overlayPage.navHeading()).toHaveText("Why read aloud");
-  const markerValue = await overlayPage
-    .navSlider()
-    .evaluate((el) => (el as HTMLInputElement).value);
-  await expect(overlayPage.navReadout()).toContainText(`${markerValue}%`);
 });
 
 test("prev/next chunk navigation and smart-back (ticket 0022)", async ({ page, overlayPage }) => {

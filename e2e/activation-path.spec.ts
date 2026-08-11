@@ -20,7 +20,7 @@ test("real runtime message activates the overlay", async ({ page, serverUrl }) =
   await page.goto(`${serverUrl}/article.html`, { waitUntil: "domcontentloaded" });
 
   // The overlay must be hidden before activation.
-  await expect(page.locator(".overlay_root")).toHaveCount(0);
+  await expect(page.locator('[data-extension-root="true"]').locator(".container")).toHaveCount(0);
 
   // Find the extension's service worker and send the same message the
   // background's action.onClicked handler sends on icon click.
@@ -37,5 +37,5 @@ test("real runtime message activates the overlay", async ({ page, serverUrl }) =
   });
   expect(sent).toBe(true);
 
-  await expect(page.locator(".overlay_root")).toBeVisible();
+  await expect(page.locator('[data-extension-root="true"]').locator(".container")).toBeVisible();
 });

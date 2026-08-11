@@ -9,7 +9,7 @@ import { test, expect } from "./fixtures";
  * launches headed Chromium with the unpacked build loaded, and serves fixture
  * pages from a local server. The content-script overlay mounts in an open
  * Shadow DOM under `[data-extension-root="true"]`; Playwright's CSS engine
- * pierces open shadow boundaries, so `.overlay_root` resolves inside it.
+ * pierces open shadow boundaries, so `.container` resolves inside it.
  *
  * This is the harness every E2E-bearing ticket ([[0013]], [[0016]]) builds on.
  * Interaction goes through the `OverlayPage` POM (`e2e/pages/overlay-page.ts`)
@@ -22,7 +22,7 @@ test("the overlay is hidden until the extension icon activates it", async ({ ove
   await expect(overlayPage.host()).toBeAttached();
 
   // Bug 1 gate: until the extension icon is clicked, the overlay renders
-  // nothing — the Shadow DOM host exists but `.overlay_root` is absent.
+  // nothing — the Shadow DOM host exists but `.container` is absent.
   await expect(overlayPage.overlayRoot()).toHaveCount(0);
 
   // Activating (icon click → openwebtts:activate; E2E drives the same path

@@ -6,7 +6,6 @@
   import type { HeadingMarker } from "./overlay-store.js";
   import { formatPercent } from "./overlay-format.js";
   import OverlayPlayer from "./OverlayPlayer.svelte";
-  import "./styles.css";
 
   const { Story } = defineMeta({
     title: "OverlayPlayer",
@@ -62,10 +61,10 @@
     chunkText: "A short snippet.",
   }}
   play={async ({ canvasElement }) => {
-    const chevron = canvasElement.querySelector(".overlay_chevron");
+    const chevron = canvasElement.querySelector(".chevron");
     await expect(chevron).not.toBeNull();
     await expect(
-      chevron?.classList.contains("overlay_chevron--expanded"),
+      chevron?.classList.contains("chevron--expanded"),
     ).toBe(false);
   }}
 />
@@ -121,10 +120,10 @@
     );
     await expect(args.onToggleExpanded).toHaveBeenCalledTimes(1);
 
-    const chevron = canvasElement.querySelector(".overlay_chevron");
+    const chevron = canvasElement.querySelector(".chevron");
     await expect(chevron).not.toBeNull();
     await expect(
-      chevron?.classList.contains("overlay_chevron--expanded"),
+      chevron?.classList.contains("chevron--expanded"),
     ).toBe(true);
 
     // Play/pause fires the callback (playing: true → "Pause").

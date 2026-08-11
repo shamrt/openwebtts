@@ -3,9 +3,8 @@ import type { MessageListener } from "$lib/shared/chrome-runtime";
 
 import { getRuntime } from "$lib/shared/chrome-runtime";
 // Extension.js content script entrypoint (TypeScript).
-// - Mounts the Svelte overlay UI into an open Shadow DOM.
-// - Injects the overlay shell CSS (plain CSS, no Tailwind — the content-script
-//   build does not run @tailwindcss/vite) at build time via a `?inline` import.
+// - Mounts the Svelte overlay UI into an open Shadow DOM. Component styles are
+//   scoped and injected into the shadow root by Svelte at mount time.
 // - Bridges the plain-TS overlay store to Svelte reactivity via writable stores.
 // - Exposes a CustomEvent test seam for E2E highlighting tests.
 // Docs: https://extension.js.org/docs/content-scripts
@@ -14,7 +13,6 @@ import { writable } from "svelte/store";
 
 import { createOverlayStore } from "./overlay-store.js";
 import OverlayPlayerHost from "./OverlayPlayerHost.svelte";
-import overlayCss from "./styles.css?inline";
 
 console.log("[OpenWebTTS] content script ready");
 
@@ -35,14 +33,8 @@ export default function initial() {
   // Mounting inside a shadow DOM prevents the extension's styles from leaking
   // into the host page and vice-versa. The shadow root is OPEN so Playwright
   // CSS selectors and the test seam (CustomEvents on `document`) can reach in.
+  // Svelte injects each component's scoped styles into this shadow root.
   const shadowRoot = rootDiv.attachShadow({ mode: "open" });
-
-  const styleElement = document.createElement("style");
-  styleElement.textContent = overlayCss;
-  shadowRoot.appendChild(styleElement);
-  const contentDiv = document.createElement("div");
-  contentDiv.className = "content_script";
-  shadowRoot.appendChild(contentDiv);
 
   const overlayStore = createOverlayStore();
 
@@ -154,7 +146,7 @@ export default function initial() {
   // including the async settings load and engine resolution. The mount
   // result is unused.
   const _player = mount(OverlayPlayerHost, {
-    target: contentDiv,
+    target: shadowRoot,
     props: {
       expanded: ui.expanded,
       activated: ui.activated,
