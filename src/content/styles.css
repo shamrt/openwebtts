@@ -182,6 +182,16 @@
 
 /* --- Buttons --------------------------------------------------------------- */
 
+.overlay_btns {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+  /* Never shrink: the snippet (flex: 1 1 auto, min-width: 0) absorbs all
+     width changes, so the buttons stay stationary as chunk text changes. */
+  flex: 0 0 auto;
+}
+
 .overlay_btn {
   pointer-events: auto;
   appearance: none;
